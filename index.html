@@ -18,14 +18,14 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;overflow:hidden;}
-#app{display:flex;flex-direction:column;height:100%;max-width:520px;margin:0 auto;}
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh;max-width:520px;margin:0 auto;}
 #header{padding:14px 18px 12px;border-bottom:1px solid var(--line);flex-shrink:0;
   background:linear-gradient(180deg,var(--panel) 0%,var(--bg) 100%);position:relative;z-index:10;}
 .header-row{display:flex;justify-content:space-between;align-items:baseline;}
 .logo{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:var(--text);}
 .logo span{color:var(--gold);}
 .goal-tag{font-size:11px;color:var(--dim);letter-spacing:.8px;}
-#content{flex:1;overflow-y:auto;overflow-x:hidden;padding-bottom:calc(var(--nav-h)+60px);min-height:0;-webkit-overflow-scrolling:touch;}
+#content{flex:1 1 auto;overflow-y:scroll;overflow-x:hidden;padding-bottom:120px;min-height:0;-webkit-overflow-scrolling:touch;}
 #nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;
   height:var(--nav-h);background:rgba(12,13,16,.92);backdrop-filter:blur(16px);
   border-top:1px solid var(--line);display:flex;z-index:20;}
@@ -34,7 +34,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
 .nav-btn.active{color:var(--gold);}
 .nav-icon{font-size:22px;line-height:1;}
 .nav-label{font-size:10.5px;font-weight:600;letter-spacing:.4px;}
- 
+
 /* SHEET */
 #sheet{position:fixed;inset:0;z-index:30;display:none;}
 #sheet.open{display:flex;flex-direction:column;justify-content:flex-end;}
@@ -46,7 +46,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
 #sheet-close{width:34px;height:34px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);
   color:var(--dim);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
 #sheet-list{overflow-y:auto;padding:0 14px 24px;flex:1;}
- 
+
 /* COMMON */
 .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin:10px 14px;}
 .card-label{font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--dim);margin-bottom:10px;}
@@ -58,7 +58,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
 .date-center{text-align:center;min-width:130px;cursor:pointer;}
 .date-str{font-family:'Bebas Neue';font-size:18px;letter-spacing:1.5px;}
 .date-sub{font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-top:1px;}
- 
+
 /* RINGS */
 .rings{display:flex;justify-content:space-around;padding:16px 0 10px;}
 .ring-svg{transform:rotate(-90deg);}
@@ -69,7 +69,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
 .ring-sub{font-size:10px;color:var(--dim);letter-spacing:.8px;margin-top:2px;}
 .ring-label{font-size:10.5px;font-weight:700;letter-spacing:.6px;margin-top:1px;}
 .ring-box{position:relative;width:140px;height:140px;}
- 
+
 /* BUTTONS */
 .btn-primary{display:flex;align-items:center;justify-content:center;gap:7px;
   background:var(--gold);color:#1A1408;border:none;border-radius:12px;
@@ -91,7 +91,7 @@ textarea{width:100%;min-height:68px;background:var(--panel2);border:1px solid va
   border-radius:10px;color:var(--text);padding:12px;font-size:14px;
   resize:vertical;outline:none;font-family:'DM Sans',sans-serif;}
 textarea::placeholder{color:var(--dim);}
- 
+
 /* DAY SELECTOR — scrollable row */
 .day-scroll{display:flex;gap:8px;padding:14px 14px 4px;overflow-x:auto;scroll-snap-type:x mandatory;}
 .day-scroll::-webkit-scrollbar{display:none;}
@@ -100,7 +100,7 @@ textarea::placeholder{color:var(--dim);}
   font-family:'Bebas Neue';font-size:15px;letter-spacing:1.2px;text-align:center;
   transition:all .18s;white-space:nowrap;}
 .day-tab.active{border-color:var(--gold);background:rgba(232,177,76,.1);color:var(--gold);}
- 
+
 /* EXERCISE CARD */
 .ex-card{margin:8px 14px;border-radius:14px;padding:14px;background:var(--panel);
   border:1px solid var(--line);transition:border-color .25s,background .25s;}
@@ -123,7 +123,7 @@ textarea::placeholder{color:var(--dim);}
   font-family:'Bebas Neue';letter-spacing:1px;outline:none;min-width:0;transition:border-color .2s;}
 .set-input.at-top{border-color:var(--gold);}
 .set-x{font-size:14px;color:var(--dim);flex-shrink:0;}
- 
+
 /* COMPLEX BLOCK */
 .complex-seq{background:var(--panel2);border-radius:10px;padding:12px;margin:8px 0;}
 .complex-step{display:flex;align-items:center;gap:8px;padding:5px 0;
@@ -137,7 +137,7 @@ textarea::placeholder{color:var(--dim);}
 .rounds-ctrl{display:flex;align-items:center;gap:10px;}
 .rounds-val{font-family:'Bebas Neue';font-size:24px;color:var(--text);min-width:24px;text-align:center;}
 .rest-note{font-size:11px;color:var(--dim);margin-top:6px;font-style:italic;}
- 
+
 /* PROGRESS */
 .stats-row{display:flex;gap:8px;padding:14px 14px 4px;}
 .stat-box{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:14px;
@@ -154,7 +154,7 @@ svg.chart{width:100%;display:block;}
 .history-vals{display:flex;gap:14px;flex:1;}
 .history-w{font-family:'Bebas Neue';font-size:18px;letter-spacing:1px;color:var(--text);}
 .history-extra{font-size:12px;color:var(--dim);line-height:2;}
- 
+
 /* FOOD */
 .food-group-title{font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;
   color:var(--gold);margin:14px 0 8px;}
@@ -241,11 +241,11 @@ svg.chart{width:100%;display:block;}
     <div id="sheet-list"></div>
   </div>
 </div>
- 
+
 <script>
 const GOAL={startW:155,targetW:147,protein:160,calories:1800};
 const CIRC=2*Math.PI*56;
- 
+
 /* ── 6 ROTATING WORKOUTS ── */
 /* type: 'strength' | 'complex' | 'cardio'
    complex exercises have a 'sequence' array and track rounds completed
@@ -357,7 +357,7 @@ const PROGRAM={
     ]
   },
 };
- 
+
 const FOODS=[
   {name:'Naya double chicken',g:55,k:650,tag:'lunch'},
   {name:'Sweetgreen double protein',g:55,k:650,tag:'lunch'},
@@ -376,7 +376,7 @@ const FOODS=[
   {name:'Almonds 1oz',g:6,k:165,tag:'snack'},
   {name:'Cortado',g:2,k:40,tag:'morning'},
 ];
- 
+
 /* ── RESTAURANT MENUS — [name,cal,protein,carbs,fat,category] ──
    Sweetgreen & NAYA from published data (fatsecret/bowlmacros 2026);
    Dill & Parsley + Thai cart estimated from standard portions. */
@@ -434,7 +434,7 @@ const USUALS={
   thai:[{name:'Khao Man Gai Usual',items:'Grilled chicken thigh, ginger rice, lettuce, clear soup, ginger-soy sauce',cal:660,pro:42,carb:57,fat:25}],
 };
 let foodSpot='sweetgreen', foodMode='build', bowl={};
- 
+
 /* ── HELPERS ── */
 function localDate(d=new Date()){
   const o=d.getTimezoneOffset();
@@ -453,7 +453,7 @@ function ring(val,goal,color){
       stroke-dasharray="${dash} ${CIRC.toFixed(1)}"/>
   </svg>`;
 }
- 
+
 /* ── STORAGE ── */
 const DB={
   getDay(d){try{return JSON.parse(localStorage.getItem('rc_d_'+d))||{protein:0,calories:0,log:[],notes:''};}catch{return{protein:0,calories:0,log:[],notes:''};}},
@@ -463,10 +463,10 @@ const DB={
   getProgress(){try{return JSON.parse(localStorage.getItem('rc_p'))||[];}catch{return[];}},
   setProgress(v){localStorage.setItem('rc_p',JSON.stringify(v));},
 };
- 
+
 /* ── STATE ── */
 let state={tab:'today',date:localDate()};
- 
+
 /* ── RENDER ── */
 function render(){
   const c=document.getElementById('content');
@@ -476,7 +476,7 @@ function render(){
   else                        c.innerHTML=renderFood();
   c.scrollTop=0;
 }
- 
+
 /* ── TODAY ── */
 function renderToday(){
   const d=DB.getDay(state.date);
@@ -548,7 +548,7 @@ function renderToday(){
   </div>
   </div>`;
 }
- 
+
 /* ── TRAIN ── */
 function renderTrain(){
   const wk=DB.getWorkout(state.date);
@@ -648,9 +648,10 @@ function renderTrain(){
       <div class="ex-cue">➕ ${ex.cue}</div>
     </div>`;
   }).join('')}
+  <div style="height:80px;"></div>
   </div>`;
 }
- 
+
 /* ── PROGRESS ── */
 function renderProgress(){
   const entries=DB.getProgress().sort((a,b)=>a.date.localeCompare(b.date));
@@ -718,7 +719,7 @@ function renderProgress(){
   </div>`:''}
   </div>`;
 }
- 
+
 function buildChart(entries){
   const W=320,H=140,PL=32,PR=16,PT=10,PB=24;
   const vals=entries.map(e=>e.weight);
@@ -745,7 +746,7 @@ function buildChart(entries){
     ${[mn,GOAL.targetW,mx].map(v=>`<text x="${PL-4}" y="${(ty(v)+4).toFixed(1)}" fill="#7A8090" font-size="9" font-family="Bebas Neue" text-anchor="end">${v.toFixed(0)}</text>`).join('')}
   </svg>`;
 }
- 
+
 /* ── FOOD ── */
 function bowlTotals(){
   const items=MENUS[foodSpot].items;let t={cal:0,pro:0,carb:0,fat:0};
@@ -812,7 +813,7 @@ function renderFood(){
   </div>`:''}
   </div>`;
 }
- 
+
 /* ── ACTIONS ── */
 function switchTab(t){
   state.tab=t;
@@ -870,7 +871,7 @@ function saveProgress(){
   DB.setProgress(entries);render();
 }
 function deleteProgress(date){DB.setProgress(DB.getProgress().filter(e=>e.date!==date));render();}
- 
+
 /* ── FOOD BUILDER ACTIONS ── */
 function setFoodSpot(k){foodSpot=k;bowl={};render();}
 function setFoodMode(m){foodMode=m;render();}
@@ -897,7 +898,7 @@ function flash(msg){
   f.style.cssText='position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--green);color:#04240f;padding:12px 20px;border-radius:24px;font-weight:700;font-size:13px;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.4);';
   document.body.appendChild(f);setTimeout(()=>f.remove(),1700);
 }
- 
+
 render();
 </script>
 </body>
