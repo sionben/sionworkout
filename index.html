@@ -270,11 +270,28 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Manrope
   <div class="login-card fadein">
     <div class="login-logo"><span class="a">RE</span><span class="b">COMP</span></div>
     <div class="login-sub">Your training. Your data. Anywhere.</div>
-    <div class="login-label">Your Personal Code</div>
-    <input id="code-input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="••••••••"/>
-    <div id="login-err"></div>
-    <button class="btn-primary" onclick="doLogin()">Access My Data</button>
-    <div class="login-hint">First time? Pick any code and we'll build your personal plan.<br/>Same code on any device = your data, everywhere.</div>
+
+    <div id="login-paths" style="margin-top:38px;display:flex;flex-direction:column;gap:13px;">
+      <button class="btn-primary" onclick="showSignup()">✦ Create my plan</button>
+      <button class="btn-primary" style="background:var(--surface);color:var(--sapphire);border:2px solid var(--line);box-shadow:var(--sh2);" onclick="showCodeEntry()">I already have a code</button>
+    </div>
+
+    <div id="login-signup" style="display:none;margin-top:28px;">
+      <div class="login-label">Choose your personal code</div>
+      <div style="font-size:12.5px;color:var(--dim);margin-bottom:14px;line-height:1.6;">Pick anything memorable — this is how you log in on any device. Keep it private.</div>
+      <input id="code-input-new" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. sion123" style="width:100%;background:var(--surface);border:2px solid var(--line);border-radius:18px;padding:20px;font-size:22px;font-weight:700;text-align:center;letter-spacing:4px;color:var(--ink);font-family:'Manrope',sans-serif;box-shadow:var(--sh);outline:none;"/>
+      <div id="login-err-new" style="color:var(--rose);font-size:13px;font-weight:600;margin-top:10px;min-height:16px;"></div>
+      <button class="btn-primary" style="margin-top:12px;" onclick="doSignup()">Continue to setup →</button>
+      <button onclick="showPaths()" style="background:none;border:none;color:var(--dim);font-size:13px;font-weight:600;margin-top:10px;width:100%;cursor:pointer;font-family:'Manrope',sans-serif;padding:8px;">← Back</button>
+    </div>
+
+    <div id="login-return" style="display:none;margin-top:28px;">
+      <div class="login-label">Your Personal Code</div>
+      <input id="code-input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="••••••••" style="width:100%;background:var(--surface);border:2px solid var(--line);border-radius:18px;padding:22px;font-size:26px;font-weight:700;text-align:center;letter-spacing:6px;color:var(--ink);font-family:'Manrope',sans-serif;box-shadow:var(--sh);outline:none;"/>
+      <div id="login-err" style="color:var(--rose);font-size:13px;font-weight:600;margin-top:12px;min-height:18px;"></div>
+      <button class="btn-primary" style="margin-top:12px;" onclick="doLogin()">Access My Data</button>
+      <button onclick="showPaths()" style="background:none;border:none;color:var(--dim);font-size:13px;font-weight:600;margin-top:10px;width:100%;cursor:pointer;font-family:'Manrope',sans-serif;padding:8px;">← Back</button>
+    </div>
   </div>
 </div>
 
@@ -349,45 +366,70 @@ let pendingWorkout=null; // workout being generated/edited
 /* ============================================================
    LOGIN
 ============================================================ */
-function showErr(m){document.getElementById('login-err').textContent=m||'';}
-function setLoginBusy(b){const btn=document.querySelector('#login-overlay .btn-primary');if(btn){btn.disabled=b;btn.textContent=b?'Connecting…':'Access My Data';}}
-
-async function doLogin(){
-  const code=document.getElementById('code-input').value.trim();
-  if(code.length<3){showErr('Code must be at least 3 characters');return;}
-  showErr(''); setLoginBusy(true);
-  CURRENT_CODE=code;
-
-  // ADMIN?
-  if(code.toLowerCase()===ADMIN_CODE.toLowerCase()){
-    await ensureSb();
-    await adminLogin();
-    return;
-  }
-
+function showErr(m){const el=document.getElementById('login-err');if(el)el.textContent=m||'';}
+function showPaths(){
+  document.getElementById('login-paths').style.display='flex';
+  document.getElementById('login-signup').style.display='none';
+  document.getElementById('login-return').style.display='none';
+}
+function showSignup(){
+  document.getElementById('login-paths').style.display='none';
+  document.getElementById('login-signup').style.display='block';
+  document.getElementById('login-return').style.display='none';
+  setTimeout(()=>{const i=document.getElementById('code-input-new');if(i)i.focus();},200);
+}
+function showCodeEntry(){
+  document.getElementById('login-paths').style.display='none';
+  document.getElementById('login-signup').style.display='none';
+  document.getElementById('login-return').style.display='block';
+  setTimeout(()=>{const i=document.getElementById('code-input');if(i)i.focus();},200);
+}
+function setLoginBusy(b){
+  document.querySelectorAll('#login-overlay .btn-primary').forEach(btn=>{btn.disabled=b;});
+  const nb=document.querySelector('#login-signup .btn-primary');
+  if(nb)nb.textContent=b?'Setting up…':'Continue to setup →';
+  const rb=document.querySelector('#login-return .btn-primary');
+  if(rb)rb.textContent=b?'Connecting…':'Access My Data';
+}
+async function doSignup(){
+  const inp=document.getElementById('code-input-new');
+  const code=inp?inp.value.trim():'';
+  const errEl=document.getElementById('login-err-new');
+  if(code.length<3){if(errEl)errEl.textContent='Code must be at least 3 characters';return;}
+  if(code.toLowerCase()===ADMIN_CODE.toLowerCase()){if(errEl)errEl.textContent='That code is reserved — pick another';return;}
+  if(errEl)errEl.textContent='';
+  setLoginBusy(true); CURRENT_CODE=code;
   try{
     await ensureSb();
     const email=codeToEmail(code), pass=codeToPass(code);
-    // try sign in
+    // try login first — if they already have an account, take them in
     let {data,error}=await sb.auth.signInWithPassword({email,password:pass});
     if(error){
-      // sign up (first time)
       const su=await sb.auth.signUp({email,password:pass});
-      if(su.error){showErr(su.error.message);setLoginBusy(false);return;}
+      if(su.error){if(errEl)errEl.textContent=su.error.message;setLoginBusy(false);return;}
       data=su.data;
-      // may need a fresh sign-in if session not returned
-      if(!data.session){
-        const si=await sb.auth.signInWithPassword({email,password:pass});
-        if(si.error){showErr(si.error.message);setLoginBusy(false);return;}
-        data=si.data;
-      }
+      if(!data.session){const si=await sb.auth.signInWithPassword({email,password:pass});if(!si.error)data=si.data;}
     }
-    SESSION=data.session||data.user?{user:data.user}:null;
+    SESSION=data.session?{user:data.session.user}:null;
     if(!SESSION||!SESSION.user){const u=await sb.auth.getUser();SESSION={user:u.data.user};}
     await afterAuth();
-  }catch(e){
-    console.error(e); showErr('Connection problem — try again'); setLoginBusy(false);
-  }
+  }catch(e){if(errEl)errEl.textContent='Connection problem — try again';setLoginBusy(false);}
+}
+
+async function doLogin(){
+  const inp=document.getElementById('code-input');
+  const code=inp?inp.value.trim():'';
+  if(code.length<3){showErr('Code must be at least 3 characters');return;}
+  showErr(''); setLoginBusy(true); CURRENT_CODE=code;
+  if(code.toLowerCase()===ADMIN_CODE.toLowerCase()){await ensureSb();await adminLogin();return;}
+  try{
+    await ensureSb();
+    const email=codeToEmail(code), pass=codeToPass(code);
+    const {data,error}=await sb.auth.signInWithPassword({email,password:pass});
+    if(error){showErr('Code not found — tap "Create my plan" to sign up');setLoginBusy(false);return;}
+    SESSION={user:data.session.user};
+    await afterAuth();
+  }catch(e){showErr('Connection problem — try again');setLoginBusy(false);}
 }
 
 async function ensureSb(){
@@ -1401,8 +1443,14 @@ function closePop(){document.getElementById('pop-overlay').classList.remove('sho
   // show login
 })();
 
-// enter key on login
-document.getElementById('code-input').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+// enter key on login inputs
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter')return;
+  const rtn=document.getElementById('login-return');
+  const sgn=document.getElementById('login-signup');
+  if(rtn&&rtn.style.display!=='none')doLogin();
+  else if(sgn&&sgn.style.display!=='none')doSignup();
+});
 </script>
 </body>
 </html>
