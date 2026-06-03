@@ -325,9 +325,9 @@ textarea::placeholder{color:var(--dim);}
 .demo-steps li::before{content:counter(st);position:absolute;left:0;top:8px;width:24px;height:24px;border-radius:50%;background:var(--grad);color:#fff;font-family:'Manrope';font-weight:800;font-size:11px;display:flex;align-items:center;justify-content:center;}
 
 
-.mbody-wrap{display:flex;justify-content:center;gap:10px;margin:10px 0 4px;}
-.mbody-col{flex:1;max-width:47%;display:flex;flex-direction:column;align-items:center;}
-.mbody-col svg{width:100%;height:auto;max-height:300px;filter:drop-shadow(0 4px 10px rgba(30,55,110,.08));}
+.mbody-wrap{display:flex;justify-content:center;gap:18px;margin:6px 0 2px;}
+.mbody-col{flex:0 0 auto;width:33%;max-width:130px;display:flex;flex-direction:column;align-items:center;}
+.mbody-col svg{width:100%;height:auto;max-height:150px;filter:drop-shadow(0 3px 8px rgba(30,55,110,.07));}
 .mbody-lbl{font-size:9px;letter-spacing:1.6px;text-transform:uppercase;color:var(--dim);font-weight:700;margin-top:8px;}
 
 
@@ -385,6 +385,7 @@ textarea::placeholder{color:var(--dim);}
   <div class="onb-foot">
     <button class="onb-next" id="onb-next" onclick="onbNext()">Continue</button>
     <button class="onb-back" id="onb-back" onclick="onbBack()" style="display:none;">&larr; Back</button>
+    <button class="onb-exit" onclick="doLogout()">Sign out</button>
   </div>
 </div>
 <style>
@@ -428,6 +429,7 @@ textarea::placeholder{color:var(--dim);}
 .pr-st.t .v{color:var(--teal);}
 .pr-st .l{font-size:10px;font-weight:700;letter-spacing:1px;color:var(--dim);text-transform:uppercase;margin-top:2px;}
 .pr-note{font-size:13px;color:var(--ink2);margin-top:22px;line-height:1.55;}
+.onb-exit{background:none;border:none;color:var(--dim);font-size:11px;font-weight:600;letter-spacing:.4px;cursor:pointer;padding:8px;margin-top:2px;width:100%;font-family:'Manrope';}
 
 </style>
 <div id="app">
@@ -910,28 +912,18 @@ function stepProg(id,d){const el=document.getElementById(id);if(!el)return;el.va
 function saveProgress(){const date=document.getElementById('prog-date').value||localDate();const w=document.getElementById('pw').value;if(!w)return;const entries=DB.getProgress().filter(function(e){return e.date!==date;});entries.push({date:date,weight:parseFloat(w),waist:document.getElementById('pwaist').value?parseFloat(document.getElementById('pwaist').value):null,sleep:document.getElementById('psleep').value?parseFloat(document.getElementById('psleep').value):null});DB.setProgress(entries);render();flash('✓ Logged '+w+' lb');}
 function deleteProgress(date){DB.setProgress(DB.getProgress().filter(function(e){return e.date!==date;}));render();}
 
-
 /* ============================================================
-   RECOMP — PERSONALIZATION ADDON (login, onboarding, plan, admin)
-   Config consts live in the base config block above (do not redeclare).
+   RECOMP ADDON — personalization, new muscle figure, Enter nav
 ============================================================ */
 let USERPROFILE=null;
-
 function codeEmail(c){return 'u_'+c.toLowerCase().replace(/[^a-z0-9]/g,'')+'@recomp.app';}
 function codePass(c){return 'rc_'+c.toLowerCase()+'_v2_pw';}
-
 function showPaths(){_lp('login-paths');}
 function showSignup(){_lp('login-signup');setTimeout(function(){var i=document.getElementById('code-input-new');if(i)i.focus();},150);}
 function showCodeEntry(){_lp('login-return');setTimeout(function(){var i=document.getElementById('code-input');if(i)i.focus();},150);}
 function _lp(id){['login-paths','login-signup','login-return'].forEach(function(x){var el=document.getElementById(x);if(el)el.style.display=(x===id)?'block':'none';});}
 function loginErr(id,msg){var el=document.getElementById(id);if(el)el.textContent=msg||'';}
-
-async function ensureSb2(){
-  if(sb)return;
-  try{sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,storage:window.localStorage}});}catch(e){console.warn(e);}
-}
-
-/* override the base doLogin */
+async function ensureSb2(){if(sb)return;try{sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,storage:window.localStorage}});}catch(e){console.warn(e);}}
 async function doLogin(){
   var code=(document.getElementById('code-input').value||'').trim();
   if(code.length<3){loginErr('login-err','Code must be at least 3 characters');return;}
@@ -942,7 +934,7 @@ async function doLogin(){
 async function doSignup(){
   var code=(document.getElementById('code-input-new').value||'').trim();
   if(code.length<3){loginErr('login-err-new','Code must be at least 3 characters');return;}
-  if(code.toLowerCase()===ADMIN_CODE.toLowerCase()){loginErr('login-err-new','That code is reserved — pick another');return;}
+  if(code.toLowerCase()===ADMIN_CODE.toLowerCase()){loginErr('login-err-new','That code is reserved');return;}
   loginErr('login-err-new','');
   await authFlow(code,true,'login-err-new');
 }
@@ -960,13 +952,14 @@ async function authFlow(code,allowCreate,errId){
       else r=su;
     }
     SBSESSION=r.data.session||{user:r.data.user};
-    state.code=code;
-    await supabasePull();
-    loadProfile();
-    hideLogin();
+    state.code=code;await supabasePull();loadProfile();hideLogin();
     if(!USERPROFILE||!USERPROFILE.onboarded){startOnboarding();}
     else{applyGoal();var lb=document.getElementById('logout-btn');if(lb)lb.style.display='';render();}
-  }catch(e){loginErr(errId,e.message||'Something went wrong');}
+  }catch(e){
+    var msg=e.message||'Something went wrong';
+    if(/fetch/i.test(msg))msg='Cannot reach server. Test on your live site (sionworkout.com), not inside the chat preview.';
+    loginErr(errId,msg);
+  }
 }
 function loadProfile(){try{var p=localStorage.getItem('rc_profile');USERPROFILE=p?JSON.parse(p):null;}catch(e){USERPROFILE=null;}}
 function saveUserProfile(){localStorage.setItem('rc_profile',JSON.stringify(USERPROFILE));supabasePush('rc_profile',USERPROFILE);}
@@ -977,7 +970,7 @@ function applyGoal(){
   GOAL.carbs=USERPROFILE.carbGoal;GOAL.fat=USERPROFILE.fatGoal;
 }
 
-/* onboarding */
+/* ── ONBOARDING ── */
 var ONBQ=[
  {k:'name',t:'text',q:"What's your name?",d:"This is your space — we'll make it personal.",ph:'Full name'},
  {k:'sex',t:'choice',q:"Biological sex?",d:"Used for accurate calorie & protein math.",o:[['male','Male'],['female','Female']]},
@@ -997,10 +990,12 @@ function renderOnb(){
   document.getElementById('onb-fill').style.width=(onbI/tot*100)+'%';
   document.getElementById('onb-step').textContent='Step '+(onbI+1)+' of '+tot;
   document.getElementById('onb-back').style.display=onbI>0?'block':'none';
-  var b=document.getElementById('onb-body'),h='<div class="onb-anim"><div class="onb-q">'+s.q+'</div><div class="onb-d">'+s.d+'</div>';
-  if(s.t==='text')h+='<input class="onb-in" id="oin" placeholder="'+s.ph+'" value="'+(onbD[s.k]||'')+'" oninput="onbChk()"/>';
-  else if(s.t==='num')h+='<input class="onb-in" id="oin" type="number" inputmode="numeric" placeholder="'+s.ph+'" value="'+(onbD[s.k]||'')+'" oninput="onbChk()"/><div class="onb-u">'+s.u+'</div>';
-  else if(s.t==='height')h+='<div class="onb-hr"><div><input class="onb-in" id="oft" type="number" inputmode="numeric" placeholder="5" value="'+(onbD.ft||'')+'" oninput="onbChk()"/><div class="onb-u">feet</div></div><div><input class="onb-in" id="oin" type="number" inputmode="numeric" placeholder="8" value="'+(onbD.inch||'')+'" oninput="onbChk()"/><div class="onb-u">inches</div></div></div>';
+  var b=document.getElementById('onb-body');
+  var h='<div class="onb-anim"><div class="onb-q">'+s.q+'</div><div class="onb-d">'+s.d+'</div>';
+  var ek='onkeydown="if(event.key===\'Enter\')onbNext()" ';
+  if(s.t==='text')h+='<input class="onb-in" id="oin" placeholder="'+s.ph+'" value="'+(onbD[s.k]||'')+'" '+ek+'oninput="onbChk()"/>';
+  else if(s.t==='num')h+='<input class="onb-in" id="oin" type="number" inputmode="numeric" placeholder="'+s.ph+'" value="'+(onbD[s.k]||'')+'" '+ek+'oninput="onbChk()"/><div class="onb-u">'+s.u+'</div>';
+  else if(s.t==='height')h+='<div class="onb-hr"><div><input class="onb-in" id="oft" type="number" inputmode="numeric" placeholder="5" value="'+(onbD.ft||'')+'" '+ek+'oninput="onbChk()"/><div class="onb-u">feet</div></div><div><input class="onb-in" id="oin" type="number" inputmode="numeric" placeholder="8" value="'+(onbD.inch||'')+'" '+ek+'oninput="onbChk()"/><div class="onb-u">inches</div></div></div>';
   else if(s.t==='choice'){h+='<div class="onb-opts">';s.o.forEach(function(o){h+='<button class="onb-opt'+(onbD[s.k]===o[0]?' sel':'')+'" onclick="onbPick(\''+o[0]+'\')">'+o[1]+'<span class="tk">✓</span></button>';});h+='</div>';}
   h+='</div>';b.innerHTML=h;b.scrollTop=0;onbChk();
   setTimeout(function(){var i=document.getElementById('oin');if(i&&(s.t==='text'||s.t==='num'))i.focus();},120);
@@ -1041,50 +1036,46 @@ function finishOnb(){
   USERPROFILE=Object.assign({},onbD,plan,{onboarded:true,code:state.code,created:Date.now()});
   saveUserProfile();
   var prog=DB.getProgress();if(!prog.some(function(e){return e.weight;})){prog.push({date:localDate(),weight:onbD.weight,waist:null,sleep:null});DB.setProgress(prog);}
-  applyGoal();
-  showPlanReveal();
+  applyGoal();showPlanReveal();
 }
 function showPlanReveal(){
   document.getElementById('onb-step').textContent='Your plan is ready';
   var f=USERPROFILE.name.split(' ')[0];
   document.getElementById('onb-body').innerHTML='<div class="onb-anim plan-rev">'+
     '<div class="pr-h">'+f+', here\'s your plan</div>'+
-    '<div class="pr-s">'+USERPROFILE.planLabel+' · '+USERPROFILE.weight+' → '+USERPROFILE.goalWeight+' lbs</div>'+
+    '<div class="pr-s">'+USERPROFILE.planLabel+' · '+USERPROFILE.weight+' \u2192 '+USERPROFILE.goalWeight+' lbs</div>'+
     '<div class="pr-grid"><div class="pr-st"><div class="v">'+USERPROFILE.calGoal+'</div><div class="l">Daily Calories</div></div>'+
     '<div class="pr-st t"><div class="v">'+USERPROFILE.proteinGoal+'g</div><div class="l">Protein / day</div></div>'+
     '<div class="pr-st"><div class="v">'+USERPROFILE.carbGoal+'g</div><div class="l">Carbs / day</div></div>'+
     '<div class="pr-st t"><div class="v">'+USERPROFILE.fatGoal+'g</div><div class="l">Fat / day</div></div></div>'+
-    '<div class="pr-note">Calculated from your stats (Mifflin-St Jeor). Adjustable anytime in your profile.</div></div>';
-  var nx=document.getElementById('onb-next');nx.textContent='Enter RECOMP →';nx.disabled=false;
+    '<div class="pr-note">Calculated from your stats (Mifflin-St Jeor). Adjustable anytime.</div></div>';
+  var nx=document.getElementById('onb-next');nx.textContent='Enter RECOMP \u2192';nx.disabled=false;
   nx.onclick=function(){document.getElementById('onb-overlay').classList.remove('show');document.getElementById('onb-next').onclick=onbNext;var lb=document.getElementById('logout-btn');if(lb)lb.style.display='';render();};
   document.getElementById('onb-back').style.display='none';
 }
 
-/* admin */
+/* ── ADMIN ── */
 async function adminEnter(){
   var email=codeEmail('__admin_'+ADMIN_CODE),pass=codePass('__admin_'+ADMIN_CODE);
   try{var r=await sb.auth.signInWithPassword({email:email,password:pass});
     if(r.error){var su=await sb.auth.signUp({email:email,password:pass});if(!su.error){var si=await sb.auth.signInWithPassword({email:email,password:pass});r=si;}}
     SBSESSION=r.data?(r.data.session||{user:r.data.user}):null;
   }catch(e){}
-  hideLogin();
-  var lb=document.getElementById('logout-btn');if(lb)lb.style.display='';
+  hideLogin();var lb=document.getElementById('logout-btn');if(lb)lb.style.display='';
   document.getElementById('content').innerHTML=adminHTML();
   var nav=document.getElementById('nav');if(nav)nav.style.display='none';
 }
 function adminHTML(){
   return '<div class="faded" style="padding:8px 0;"><div class="section-head"><div class="section-title">Admin Panel</div></div>'+
-    '<div class="card"><div class="card-label">Access control</div><div style="font-size:13.5px;line-height:1.6;color:var(--ink2)">Anyone can create an account with their own code and gets a personalized plan. Each user\'s data is fully isolated. To remove someone, delete their account in Supabase &rarr; Authentication &rarr; Users.</div></div>'+
-    '<div class="card"><div class="card-label">Look up a user</div><input class="onb-in" id="adm-code" placeholder="user code" style="margin-bottom:10px;"/><button class="btn-primary" onclick="admLookup()">Show deletion steps</button><div id="adm-out" style="margin-top:12px;"></div></div>'+
+    '<div class="card"><div class="card-label">Access control</div><div style="font-size:13.5px;line-height:1.6;color:var(--ink2)">Each user gets isolated data and a personalized plan. Remove users via Supabase \u2192 Authentication \u2192 Users.</div></div>'+
+    '<div class="card"><div class="card-label">Look up user</div><input class="onb-in" id="adm-code" placeholder="user code" style="margin-bottom:10px;"/><button class="btn-primary" onclick="admLookup()">Show steps</button><div id="adm-out" style="margin-top:12px;"></div></div>'+
     '<div style="padding:0 18px;"><button class="btn-ghost" style="color:var(--rose);border-color:rgba(194,85,99,.3)" onclick="doLogout()">Exit admin</button></div></div>';
 }
 function admLookup(){
   var c=(document.getElementById('adm-code').value||'').trim();var o=document.getElementById('adm-out');
   if(!c){o.innerHTML='<span style="color:var(--rose);font-size:13px;">Enter a code.</span>';return;}
-  o.innerHTML='<div style="background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:14px;font-size:13px;line-height:1.6;color:var(--ink2)">To remove <b>'+c+'</b>:<br>Supabase &rarr; Authentication &rarr; Users &rarr; find <b>'+codeEmail(c)+'</b> &rarr; delete. Their data goes with the account.</div>';
+  o.innerHTML='<div style="background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:14px;font-size:13px;line-height:1.6;color:var(--ink2)">To remove <b>'+c+'</b>: Supabase \u2192 Authentication \u2192 Users \u2192 find <b>'+codeEmail(c)+'</b> \u2192 delete.</div>';
 }
-
-/* boot — replaces old initAuth() */
 async function bootApp(){
   await ensureSb2();
   if(!sb){showLogin();return;}
@@ -1102,9 +1093,6 @@ async function bootApp(){
     }else{showLogin();}
   }catch(e){showLogin();}
 }
-
-/* clean logout: reset profile, restore nav, show login paths */
-var _oldLogout=typeof doLogout!=='undefined'?doLogout:null;
 async function doLogout(){
   try{if(sb)await sb.auth.signOut();}catch(e){}
   SBSESSION=null;state.code='';USERPROFILE=null;
@@ -1115,6 +1103,126 @@ async function doLogout(){
   showLogin();showPaths();
 }
 
+/* ══════════════════════════════════════
+   NEW ANATOMICAL MUSCLE FIGURE
+   Clean colored regions, front + back
+══════════════════════════════════════ */
+var MC={
+  'chest':      ['#FFCDD2','#E53935'],
+  'deltoids':   ['#BBDEFB','#1976D2'],
+  'biceps':     ['#E1BEE7','#8E24AA'],
+  'triceps':    ['#E1BEE7','#8E24AA'],
+  'abs':        ['#FFF9C4','#F9A825'],
+  'obliques':   ['#C8E6C9','#388E3C'],
+  'quadriceps': ['#FFCCBC','#E64A19'],
+  'hamstring':  ['#D1C4E9','#5E35B1'],
+  'calves':     ['#B3E5FC','#0288D1'],
+  'trapezius':  ['#B2EBF2','#0097A7'],
+  'upper-back': ['#C8E6C9','#2E7D32'],
+  'lower-back': ['#FFE0B2','#EF6C00'],
+  'gluteal':    ['#FCE4EC','#C2185B'],
+  'forearm':    ['#ECEFF1','#546E7A'],
+  'adductors':  ['#F3E5F5','#7B1FA2'],
+  'knees':      ['#ECEFF1','#546E7A'],
+  'tibialis':   ['#B3E5FC','#0288D1']
+};
+function mcol(slug,tk,lk){
+  if(tk[slug])return (MC[slug]||['#B0BEC5','#455A64'])[1];
+  if(lk[slug])return '#5BC8C0';
+  return (MC[slug]||['#CFD8DC','#607D8B'])[0];
+}
+function drawMuscle(side,tk,lk){
+  function c(s){return mcol(s,tk,lk);}
+  var SK='#EDD5C2',SKD='#C9A888';
+  // ViewBox: 0 0 180 330
+  var h='<svg viewBox="0 0 180 330" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">';
+  // ── SILHOUETTE ──
+  // Head
+  h+='<ellipse cx="90" cy="20" rx="18" ry="20" fill="'+SK+'" stroke="'+SKD+'" stroke-width="1"/>';
+  // Neck
+  h+='<rect x="83" y="37" width="14" height="14" rx="5" fill="'+SK+'"/>';
+  // Torso
+  h+='<path d="M55,50 C45,54 42,62 40,72 L38,95 38,155 40,178 46,192 54,198 90,200 126,198 134,192 140,178 142,155 142,95 140,72 C138,62 135,54 125,50 Z" fill="'+SK+'" stroke="'+SKD+'" stroke-width="0.8"/>';
+  // Arms
+  h+='<ellipse cx="31" cy="128" rx="11" ry="50" fill="'+SK+'" stroke="'+SKD+'" stroke-width="0.5" transform="rotate(-5,31,128)"/>';
+  h+='<ellipse cx="149" cy="128" rx="11" ry="50" fill="'+SK+'" stroke="'+SKD+'" stroke-width="0.5" transform="rotate(5,149,128)"/>';
+  // Pelvis
+  h+='<ellipse cx="90" cy="202" rx="38" ry="14" fill="'+SK+'" stroke="'+SKD+'" stroke-width="0.5"/>';
+  // Legs
+  h+='<ellipse cx="64" cy="270" rx="17" ry="52" fill="'+SK+'" stroke="'+SKD+'" stroke-width="0.5"/>';
+  h+='<ellipse cx="116" cy="270" rx="17" ry="52" fill="'+SK+'" stroke="'+SKD+'" stroke-width="0.5"/>';
+  // ── MUSCLES ──
+  if(side==='front'){
+    h+='<polygon points="76,40 90,35 104,40 114,52 90,58 66,52" fill="'+c('trapezius')+'" opacity="0.88"/>';
+    h+='<ellipse cx="41" cy="68" rx="15" ry="11" fill="'+c('deltoids')+'" opacity="0.88" transform="rotate(-20,41,68)"/>';
+    h+='<ellipse cx="139" cy="68" rx="15" ry="11" fill="'+c('deltoids')+'" opacity="0.88" transform="rotate(20,139,68)"/>';
+    h+='<ellipse cx="69" cy="88" rx="20" ry="16" fill="'+c('chest')+'" opacity="0.88"/>';
+    h+='<ellipse cx="111" cy="88" rx="20" ry="16" fill="'+c('chest')+'" opacity="0.88"/>';
+    h+='<ellipse cx="24" cy="116" rx="9" ry="18" fill="'+c('biceps')+'" opacity="0.88"/>';
+    h+='<ellipse cx="156" cy="116" rx="9" ry="18" fill="'+c('biceps')+'" opacity="0.88"/>';
+    h+='<ellipse cx="23" cy="154" rx="8" ry="16" fill="'+c('forearm')+'" opacity="0.88"/>';
+    h+='<ellipse cx="157" cy="154" rx="8" ry="16" fill="'+c('forearm')+'" opacity="0.88"/>';
+    // Abs (3 rows)
+    var ay=[108,126,144];
+    ay.forEach(function(y){h+='<ellipse cx="78" cy="'+y+'" rx="12" ry="8" fill="'+c('abs')+'" opacity="0.88"/><ellipse cx="102" cy="'+y+'" rx="12" ry="8" fill="'+c('abs')+'" opacity="0.88"/>';});
+    h+='<ellipse cx="54" cy="136" rx="11" ry="26" fill="'+c('obliques')+'" opacity="0.88"/>';
+    h+='<ellipse cx="126" cy="136" rx="11" ry="26" fill="'+c('obliques')+'" opacity="0.88"/>';
+    h+='<ellipse cx="70" cy="210" rx="15" ry="11" fill="'+c('adductors')+'" opacity="0.88"/>';
+    h+='<ellipse cx="110" cy="210" rx="15" ry="11" fill="'+c('adductors')+'" opacity="0.88"/>';
+    h+='<ellipse cx="63" cy="263" rx="14" ry="38" fill="'+c('quadriceps')+'" opacity="0.88"/>';
+    h+='<ellipse cx="117" cy="263" rx="14" ry="38" fill="'+c('quadriceps')+'" opacity="0.88"/>';
+    h+='<ellipse cx="60" cy="307" rx="11" ry="18" fill="'+c('calves')+'" opacity="0.88"/>';
+    h+='<ellipse cx="120" cy="307" rx="11" ry="18" fill="'+c('calves')+'" opacity="0.88"/>';
+  } else {
+    h+='<polygon points="66,42 90,36 114,42 124,58 90,70 56,58" fill="'+c('trapezius')+'" opacity="0.88"/>';
+    h+='<ellipse cx="41" cy="68" rx="15" ry="11" fill="'+c('deltoids')+'" opacity="0.88" transform="rotate(-20,41,68)"/>';
+    h+='<ellipse cx="139" cy="68" rx="15" ry="11" fill="'+c('deltoids')+'" opacity="0.88" transform="rotate(20,139,68)"/>';
+    h+='<ellipse cx="24" cy="116" rx="9" ry="18" fill="'+c('triceps')+'" opacity="0.88"/>';
+    h+='<ellipse cx="156" cy="116" rx="9" ry="18" fill="'+c('triceps')+'" opacity="0.88"/>';
+    h+='<ellipse cx="23" cy="154" rx="8" ry="16" fill="'+c('forearm')+'" opacity="0.88"/>';
+    h+='<ellipse cx="157" cy="154" rx="8" ry="16" fill="'+c('forearm')+'" opacity="0.88"/>';
+    h+='<path d="M56,60 Q44,80 40,110 Q38,132 44,156 Q50,170 60,176 Q64,155 66,132 Q68,104 62,74 Z" fill="'+c('upper-back')+'" opacity="0.88"/>';
+    h+='<path d="M124,60 Q136,80 140,110 Q142,132 136,156 Q130,170 120,176 Q116,155 114,132 Q112,104 118,74 Z" fill="'+c('upper-back')+'" opacity="0.88"/>';
+    h+='<ellipse cx="90" cy="104" rx="22" ry="22" fill="'+c('upper-back')+'" opacity="0.72"/>';
+    h+='<ellipse cx="79" cy="162" rx="12" ry="20" fill="'+c('lower-back')+'" opacity="0.88"/>';
+    h+='<ellipse cx="101" cy="162" rx="12" ry="20" fill="'+c('lower-back')+'" opacity="0.88"/>';
+    h+='<ellipse cx="68" cy="214" rx="23" ry="18" fill="'+c('gluteal')+'" opacity="0.88"/>';
+    h+='<ellipse cx="112" cy="214" rx="23" ry="18" fill="'+c('gluteal')+'" opacity="0.88"/>';
+    h+='<ellipse cx="62" cy="263" rx="14" ry="36" fill="'+c('hamstring')+'" opacity="0.88"/>';
+    h+='<ellipse cx="118" cy="263" rx="14" ry="36" fill="'+c('hamstring')+'" opacity="0.88"/>';
+    h+='<ellipse cx="60" cy="306" rx="12" ry="20" fill="'+c('calves')+'" opacity="0.88"/>';
+    h+='<ellipse cx="120" cy="306" rx="12" ry="20" fill="'+c('calves')+'" opacity="0.88"/>';
+  }
+  h+='</svg>';
+  return h;
+}
+
+/* Override muscleFocusCard with new figure */
+function muscleFocusCard(){
+  var wk=DB.getWorkout(state.date);var todayHas=wk&&wk.exercises&&wk.exercises.length;
+  var today=todayHas?workoutMuscles(wk):{keys:{},names:[]};
+  var lastDate=lastWorkoutDate(state.date);
+  var last=lastDate?workoutMuscles(DB.getWorkout(lastDate)):{keys:{},names:[]};
+  var daysSince=lastDate?daysBetween(lastDate,localDate()):null;
+  var rightNum,rightLbl,chips,note='';
+  if(todayHas){rightNum=today.names.length;rightLbl='muscle groups today';chips=today.names.map(function(x){return '<span class="mf-chip">'+cap(x)+'</span>';}).join('');}
+  else if(lastDate){rightNum=last.names.length;rightLbl='worked last session';chips=last.names.map(function(x){return '<span class="mf-chip last">'+cap(x)+'</span>';}).join('');note='No session today \u2014 open Coach to build one.';}
+  else{rightNum='\u2014';rightLbl='no sessions yet';chips='';note='Plan your first workout in the Coach tab.';}
+  return '<div class="card"><div class="card-label">Muscle Focus</div>'+
+    '<div class="mf-stats"><div class="mf-stat"><div class="mf-num">'+(daysSince==null?'\u2014':daysSince)+'</div><div class="mf-lbl">days since last session</div></div>'+
+    '<div class="mf-stat r"><div class="mf-num">'+rightNum+'</div><div class="mf-lbl">'+rightLbl+'</div></div></div>'+
+    '<div style="display:flex;justify-content:center;gap:14px;padding:10px 0 4px;">'+
+    '<div style="flex:0 0 44%;text-align:center;">'+drawMuscle('front',today.keys,last.keys)+'<div class="mbody-lbl">Front</div></div>'+
+    '<div style="flex:0 0 44%;text-align:center;">'+drawMuscle('back',today.keys,last.keys)+'<div class="mbody-lbl">Back</div></div>'+
+    '</div>'+
+    '<div style="display:flex;justify-content:center;gap:14px;font-size:10px;color:var(--ink2);margin:4px 0 10px;">'+
+    '<span><i style="width:9px;height:9px;border-radius:2px;background:var(--sapphire);display:inline-block;vertical-align:middle;margin-right:4px;"></i>Today</span>'+
+    '<span><i style="width:9px;height:9px;border-radius:2px;background:#5BC8C0;display:inline-block;vertical-align:middle;margin-right:4px;"></i>Last session</span>'+
+    '</div>'+
+    (chips?'<div class="mf-chips">'+chips+'</div>':'')+
+    (note?'<div class="mf-note">'+note+'</div>':'')+
+    '</div>';
+}
 
 bootApp();
 </script>
