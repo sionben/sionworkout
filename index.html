@@ -330,15 +330,39 @@ textarea::placeholder{color:var(--dim);}
 .mbody-col svg{width:100%;height:auto;max-height:300px;filter:drop-shadow(0 4px 10px rgba(30,55,110,.08));}
 .mbody-lbl{font-size:9px;letter-spacing:1.6px;text-transform:uppercase;color:var(--dim);font-weight:700;margin-top:8px;}
 
+
+#login-overlay{position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:40px 24px;}
+#login-overlay.hidden{display:none;}
+.login-box{width:100%;max-width:340px;text-align:center;}
+.login-logo{font-family:'Cormorant Garamond';font-weight:700;font-size:46px;letter-spacing:.3px;color:var(--ink);margin-bottom:6px;}
+.login-logo span{font-style:italic;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.login-tag{font-family:'Cormorant Garamond';font-style:italic;font-size:17px;color:var(--ink2);margin-bottom:44px;letter-spacing:.2px;}
+.login-field-lbl{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--sapphire);font-weight:700;margin-bottom:10px;text-align:left;}
+.login-input{width:100%;text-align:center;font-family:'Manrope';font-weight:800;font-size:30px;letter-spacing:6px;background:var(--surface);border:2px solid var(--line2);color:var(--ink);border-radius:16px;padding:18px 14px;outline:none;transition:.2s;}
+.login-input:focus{border-color:var(--sapphire);box-shadow:0 0 0 3px rgba(30,68,136,.12);}
+.login-err{font-size:13px;color:var(--rose);margin:12px 0 0;min-height:18px;font-weight:600;}
+.login-hint{font-size:12px;color:var(--dim);margin-top:20px;line-height:1.65;}
+
 </style>
 </head>
 <body>
 <div class="aurora"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div></div>
 <div id="grain"></div>
 <canvas id="confetti"></canvas>
+<div id="login-overlay">
+  <div class="login-box">
+    <div class="login-logo">RE<span>COMP</span></div>
+    <div class="login-tag">Your training. Your data. Anywhere.</div>
+    <div class="login-field-lbl">Your personal code</div>
+    <input id="code-input" class="login-input" type="text" inputmode="text" maxlength="16" placeholder="e.g. sion1234" autocomplete="off" onkeydown="if(event.key===&apos;Enter&apos;)doLogin()"/>
+    <div id="login-err" class="login-err"></div>
+    <button class="btn-primary" style="margin-top:16px;letter-spacing:1.6px;font-size:12px;" onclick="doLogin()">Access my data</button>
+    <div class="login-hint">First time? Just enter any code &mdash; we&apos;ll create your account.<br>Same code on any device = same data.</div>
+  </div>
+</div>
 <div id="app">
   <div id="header">
-    <div class="header-row"><div class="logo">RE<span>COMP</span></div><div class="streak-badge"><span class="streak-flame">🔥</span><span class="streak-num" id="streak-num">0</span><span class="streak-lbl">days</span></div></div>
+    <div class="header-row"><div class="logo">RE<span>COMP</span></div><button id="logout-btn" class="btn-icon" style="display:none;font-size:18px;" onclick="openAccountModal()">👤</button><div class="streak-badge"><span class="streak-flame">🔥</span><span class="streak-num" id="streak-num">0</span><span class="streak-lbl">days</span></div></div>
     <div class="motivate" id="motivate"></div>
   </div>
   <div id="timer-bar"><div class="timer-time" id="timer-time">1:30</div><div class="timer-presets"><button class="tpreset" onclick="startTimer(60)">60s</button><button class="tpreset" onclick="startTimer(90)">90s</button><button class="tpreset" onclick="startTimer(120)">2m</button><button class="tpreset" onclick="startTimer(180)">3m</button></div><button class="timer-x" onclick="stopTimer()">&times;</button></div>
@@ -353,7 +377,81 @@ textarea::placeholder{color:var(--dim);}
 <div id="sheet"><div class="sheet-bg" onclick="closeSheet()"></div><div class="sheet-body"><div class="sheet-header"><div class="sheet-title" id="sheet-title">ADD FOOD</div><button class="sheet-close" onclick="closeSheet()">&times;</button></div><div class="sheet-list" id="sheet-list"></div></div></div>
 <div id="modal"><div class="sheet-bg" onclick="closeModal()"></div><div class="modal-body" id="modal-body"></div></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
+
+/* ════════ SUPABASE AUTH ════════ */
+const SUPABASE_URL='https://pbdgqnbiormtkmrrcubt.supabase.co';
+const SUPABASE_ANON_KEY='pbdgqnbiormtkmrrcubt';
+let sb=null;
+try{sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,storage:window.localStorage}});}catch(e){console.warn('Supabase init failed',e);}
+let SBSESSION=null;
+
+async function supabasePull(){
+  if(!sb||!SBSESSION)return;
+  try{const {data}=await sb.from('rc_store').select('key,value');
+    if(data)data.forEach(function(r){try{localStorage.setItem(r.key,JSON.stringify(r.value));}catch(e){}});}
+  catch(e){console.warn('Supabase pull failed',e);}
+}
+function supabasePush(key,val){
+  if(!sb||!SBSESSION)return;
+  sb.from('rc_store').upsert({user_id:SBSESSION.user.id,key:key,value:val,updated_at:new Date().toISOString()}).then(function(){}).catch(function(e){console.warn('push failed',e);});
+}
+function showLogin(){const o=document.getElementById('login-overlay');if(o)o.classList.remove('hidden');}
+function hideLogin(){const o=document.getElementById('login-overlay');if(o)o.classList.add('hidden');}
+function showLoginError(msg){const el=document.getElementById('login-err');if(el)el.textContent=msg;}
+function setLoginBusy(b){const btn=document.querySelector('#login-overlay .btn-primary');if(btn){btn.disabled=b;btn.textContent=b?'Connecting\u2026':'Access my data';}}
+async function initAuth(){
+  if(!sb){render();return;}
+  try{
+    const {data}=await sb.auth.getSession();
+    SBSESSION=data.session;
+    if(SBSESSION){
+      state.code=SBSESSION.user.email.split('@')[0];
+      await supabasePull();hideLogin();render();
+      const lb=document.getElementById('logout-btn');if(lb)lb.style.display='';
+    }else{showLogin();}
+  }catch(e){showLogin();}
+}
+async function doLogin(){
+  const code=(document.getElementById('code-input').value||'').trim();
+  if(code.length<4){showLoginError('Code must be at least 4 characters');return;}
+  const email=code+'@recomp.app';
+  showLoginError('');setLoginBusy(true);
+  try{
+    let {data,error}=await sb.auth.signInWithPassword({email,password:code});
+    if(error){
+      const msg=(error.message||'').toLowerCase();
+      if(msg.includes('invalid')||msg.includes('credentials')){
+        const {data:d2,error:e2}=await sb.auth.signUp({email,password:code});
+        if(e2)throw e2;
+        if(!d2.session)throw new Error('Email confirmation is still ON \u2014 disable it in Supabase \u2192 Auth \u2192 Providers \u2192 Email.');
+        data=d2;
+      }else throw error;
+    }
+    SBSESSION=data.session;state.code=code;
+    await supabasePull();hideLogin();render();
+    const lb=document.getElementById('logout-btn');if(lb)lb.style.display='';
+  }catch(e){showLoginError(e.message||'Something went wrong \u2014 check your Supabase URL and anon key.');}
+  finally{setLoginBusy(false);}
+}
+async function doLogout(){
+  if(sb)await sb.auth.signOut();
+  SBSESSION=null;state.code='';
+  Object.keys(localStorage).filter(k=>k.startsWith('rc_')).forEach(k=>localStorage.removeItem(k));
+  const lb=document.getElementById('logout-btn');if(lb)lb.style.display='none';
+  closeModal();showLogin();
+}
+function openAccountModal(){
+  const m=document.getElementById('modal-body');
+  m.innerHTML='<div class="sheet-title">Your account</div>'+
+    '<div style="text-align:center;padding:24px 0 10px;">'+
+    '<div class="card-label" style="margin-bottom:10px;">Your personal code</div>'+
+    '<div style="font-family:Manrope;font-weight:800;font-size:36px;letter-spacing:7px;color:var(--sapphire);padding:10px 16px;background:rgba(30,68,136,.06);border-radius:14px;display:inline-block;">'+state.code+'</div>'+
+    '<div style="font-size:12px;color:var(--dim);line-height:1.6;margin-top:14px;">Enter this code on any device to<br>access your data.</div></div>'+
+    '<button class="btn-ghost" style="color:var(--rose);border-color:rgba(194,85,99,.3);margin-top:8px;" onclick="doLogout()">Sign out &amp; switch user</button>';
+  document.getElementById('modal').classList.add('open');
+}
 /* ════════ CONFIG — PASTE YOUR KEY ON GITHUB ════════ */
 const WORKER_URL='https://sionworkout-ai.sionbenharari.workers.dev';
 const MODEL_WORKOUT='claude-sonnet-4-6';
@@ -400,15 +498,15 @@ const FOODS=[
 
 const DB={
   getDay(d){try{return JSON.parse(localStorage.getItem('rc_d_'+d))||{protein:0,calories:0,carbs:0,fat:0,log:[],notes:''};}catch{return{protein:0,calories:0,carbs:0,fat:0,log:[],notes:''};}},
-  setDay(d,v){localStorage.setItem('rc_d_'+d,JSON.stringify(v));},
+  setDay(d,v){localStorage.setItem('rc_d_'+d,JSON.stringify(v));supabasePush('rc_d_'+d,v);},
   getWorkout(d){try{return JSON.parse(localStorage.getItem('rc_w_'+d))||{sets:{},rounds:{}};}catch{return{sets:{},rounds:{}};}},
-  setWorkout(d,v){localStorage.setItem('rc_w_'+d,JSON.stringify(v));},
+  setWorkout(d,v){localStorage.setItem('rc_w_'+d,JSON.stringify(v));supabasePush('rc_w_'+d,v);},
   getProgress(){try{return JSON.parse(localStorage.getItem('rc_p'))||[];}catch{return[];}},
-  setProgress(v){localStorage.setItem('rc_p',JSON.stringify(v));},
+  setProgress(v){localStorage.setItem('rc_p',JSON.stringify(v));supabasePush('rc_p',v);},
   getPRs(){try{return JSON.parse(localStorage.getItem('rc_prs'))||{};}catch{return{};}},
-  setPRs(v){localStorage.setItem('rc_prs',JSON.stringify(v));},
+  setPRs(v){localStorage.setItem('rc_prs',JSON.stringify(v));supabasePush('rc_prs',v);},
   getWorkoutDates(){try{return JSON.parse(localStorage.getItem('rc_wdates'))||[];}catch{return[];}},
-  addWorkoutDate(d){const a=this.getWorkoutDates();if(!a.includes(d)){a.push(d);localStorage.setItem('rc_wdates',JSON.stringify(a));}},
+  addWorkoutDate(d){const a=this.getWorkoutDates();if(!a.includes(d)){a.push(d);localStorage.setItem('rc_wdates',JSON.stringify(a));supabasePush('rc_wdates',a);}},
 };
 
 function oneRM(w,r){if(!w||!r)return 0;return Math.round(w*(1+r/30));}
@@ -494,7 +592,7 @@ async function callClaude(model,system,messages,maxTokens){
 function extractJSON(txt){let t=txt.replace(/```json/gi,'').replace(/```/g,'').trim();const a=t.indexOf('{'),b=t.lastIndexOf('}');if(a>=0&&b>a)t=t.slice(a,b+1);return JSON.parse(t);}
 
 /* ════════ STATE ════════ */
-let state={tab:'today',date:localDate(),coach:{step:0,time:null,energy:null,focus:''},aiBusy:false,chat:[],chatBusy:false,jFilter:'all',jOpen:{}};
+let state={tab:'today',date:localDate(),coach:{step:0,time:null,energy:null,focus:''},aiBusy:false,chat:[],chatBusy:false,jFilter:'all',jOpen:{},code:''};
 
 function render(){
   document.getElementById('streak-num').textContent=calcStreak();
@@ -741,7 +839,7 @@ function stepProg(id,d){const el=document.getElementById(id);if(!el)return;el.va
 function saveProgress(){const date=document.getElementById('prog-date').value||localDate();const w=document.getElementById('pw').value;if(!w)return;const entries=DB.getProgress().filter(function(e){return e.date!==date;});entries.push({date:date,weight:parseFloat(w),waist:document.getElementById('pwaist').value?parseFloat(document.getElementById('pwaist').value):null,sleep:document.getElementById('psleep').value?parseFloat(document.getElementById('psleep').value):null});DB.setProgress(entries);render();flash('✓ Logged '+w+' lb');}
 function deleteProgress(date){DB.setProgress(DB.getProgress().filter(function(e){return e.date!==date;}));render();}
 
-render();
+initAuth();
 </script>
 </body>
 </html>
