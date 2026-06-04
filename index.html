@@ -1407,7 +1407,7 @@ function recoveryCard(){
     '<div class="rec-stats"><div class="rec-stat"><b>'+r.load7+'</b><span>min / 7d</span></div><div class="rec-stat"><b>'+r.dsr+'</b><span>day'+(r.dsr===1?'':'s')+' active</span></div><div class="rec-stat"><b>'+classes7+'</b><span>classes / 7d</span></div></div>'+
     '<div class="rec-mus-lbl">Worked in last 48h</div><div class="mf-chips">'+chips+'</div>'+
     upHtml+
-    '<div class="rec-actions"><button class="rec-btn primary" onclick="openActivitySheet()">＋ Log activity</button><button class="rec-btn" onclick="openSchedule()">📅 Class schedule</button></div></div>';
+    '<div class="rec-actions"><button class="rec-btn primary" onclick="openPasteClasses()">⚡ Add classes</button><button class="rec-btn" onclick="openActivitySheet()">＋ Log one</button></div></div>';
 }
 
 /* ── Activity logger ── */
@@ -1578,6 +1578,41 @@ async function syncCalendar(manual){
   if(btn){btn.disabled=false;btn.textContent='↻ Sync now';}
 }
 function saveICal(){var v=(document.getElementById('cal-url').value||'').trim();var cfg=DB.getICal();cfg.url=v;DB.setICal(cfg);if(v)syncCalendar(true);else{DB.setCalEvents([]);renderSchedule();render();}}
+
+/* ── PASTE & BOOM — paste a confirmation email / class list, AI turns it into the schedule ── */
+function mergeCalClasses(mapped){
+  var byUid={};DB.getCalEvents().forEach(function(e){byUid[e.uid]=e;});
+  mapped.forEach(function(e){byUid[e.uid]=e;});
+  DB.setCalEvents(Object.keys(byUid).map(function(k){return byUid[k];}));
+  var have={};DB.getActs().forEach(function(a){if(a.calUid)have[a.calUid]=1;});
+  var today=localDate();
+  mapped.forEach(function(e){if(e.date<=today&&!have[e.uid]){var t=actType(e.type);DB.addAct({id:uid(),date:e.date,type:e.type,dur:t.dur,intensity:'moderate',cal:actCalories({type:e.type,dur:t.dur,intensity:'moderate'}),calUid:e.uid,instructor:e.instructor});}});
+}
+function openPasteClasses(){
+  var m=document.getElementById('modal-body');
+  m.innerHTML='<div class="sheet-title" style="margin-bottom:4px;">Add classes</div>'+
+    '<div style="font-size:12px;color:var(--dim);font-weight:600;margin-bottom:12px;">Paste her Solidcore confirmation email or the studio schedule — or just type the classes. The AI sorts out the dates, times, instructors &amp; muscles.</div>'+
+    '<textarea id="paste-cls" style="min-height:150px;" placeholder="e.g. Solidcore Full Body — Tue Jun 10, 7:00am with Jordan. Solidcore Arms Thu 6/12 6pm Taylor…"></textarea>'+
+    '<button class="btn-primary" style="margin-top:14px;" id="paste-go" onclick="runPasteClasses()">⚡ Add them</button>'+
+    '<button class="btn-ghost" style="margin-top:10px;" onclick="closeModal()">Cancel</button>'+
+    '<div style="text-align:center;margin-top:14px;"><button onclick="openSchedule()" style="background:none;border:none;color:var(--dim);font-size:12px;font-weight:600;cursor:pointer;font-family:Manrope;">Advanced: recurring schedule &amp; calendar sync ›</button></div>';
+  document.getElementById('modal').classList.add('open');
+  setTimeout(function(){var t=document.getElementById('paste-cls');if(t)t.focus();},150);
+}
+async function runPasteClasses(){
+  var el=document.getElementById('paste-cls'),txt=(el&&el.value||'').trim();
+  if(txt.length<4){flash('Paste or type the classes first');return;}
+  var btn=document.getElementById('paste-go');if(btn){btn.disabled=true;btn.textContent='Reading…';}
+  try{
+    var sys='Extract fitness/studio classes from the user text. Today is '+localDate()+' ('+prettyDate(localDate())+'). Resolve relative dates (today, tomorrow, weekday names) to absolute calendar dates; if a year is missing, use the next upcoming occurrence. Return ONLY valid JSON, no markdown: {"classes":[{"name":"Solidcore Full Body","date":"YYYY-MM-DD","time":"HH:MM 24-hour or empty","instructor":"name or empty"}]}. Ignore anything that is not a class booking.';
+    var raw=await callClaude(MODEL_FOOD,sys,[{role:'user',content:txt}],900);
+    var list=(extractJSON(raw).classes||[]).filter(function(c){return c.date&&/^\d{4}-\d{2}-\d{2}$/.test(c.date);});
+    if(!list.length){flash('No classes found — make sure dates are included');if(btn){btn.disabled=false;btn.textContent='⚡ Add them';}return;}
+    var mapped=list.map(function(c){var type=classifyClass(c.name||'');return {uid:'p'+c.date+type+(c.time||''),summary:c.name||actType(type).label,type:type,date:c.date,time:(c.time||'').slice(0,5),instructor:c.instructor||'',muscles:actType(type).muscles};});
+    mergeCalClasses(mapped);
+    closeModal();render();flash('✓ Added '+mapped.length+' class'+(mapped.length===1?'':'es'));
+  }catch(e){flash('⚠️ '+(e.message||'Could not read that'));if(btn){btn.disabled=false;btn.textContent='⚡ Add them';}}
+}
 
 bootApp();
 </script>
