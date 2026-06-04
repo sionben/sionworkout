@@ -461,14 +461,19 @@ try{sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persis
 let SBSESSION=null;
 
 async function supabasePull(){
-  if(!sb||!SBSESSION)return;
-  try{const {data}=await sb.from('rc_store').select('key,value');
-    if(data)data.forEach(function(r){try{localStorage.setItem(r.key,JSON.stringify(r.value));}catch(e){}});}
-  catch(e){console.warn('Supabase pull failed',e);}
+  if(!sb||!SBSESSION)return false;
+  try{const {data,error}=await sb.from('rc_store').select('key,value');
+    if(error){console.warn('Supabase pull failed',error.message);return false;}
+    if(data)data.forEach(function(r){try{localStorage.setItem(r.key,JSON.stringify(r.value));}catch(e){}});
+    return true;}
+  catch(e){console.warn('Supabase pull failed',e);return false;}
 }
-function supabasePush(key,val){
-  if(!sb||!SBSESSION)return;
-  sb.from('rc_store').upsert({user_id:SBSESSION.user.id,key:key,value:val,updated_at:new Date().toISOString()}).then(function(){}).catch(function(e){console.warn('push failed',e);});
+async function supabasePush(key,val){
+  if(!sb||!SBSESSION||!SBSESSION.user)return false;
+  try{const {error}=await sb.from('rc_store').upsert({user_id:SBSESSION.user.id,key:key,value:val,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});
+    if(error){console.warn('push failed',key,error.message);return false;}
+    return true;}
+  catch(e){console.warn('push failed',key,e);return false;}
 }
 function showLogin(){const o=document.getElementById('login-overlay');if(o)o.classList.remove('hidden');}
 function hideLogin(){const o=document.getElementById('login-overlay');if(o)o.classList.add('hidden');}
@@ -950,9 +955,11 @@ async function authFlow(code,allowCreate,errId){
       else r=su;
     }
     SBSESSION=r.data.session||{user:r.data.user};
-    state.code=code;await supabasePull();loadProfile();hideLogin();
-    if(!USERPROFILE||!USERPROFILE.onboarded){startOnboarding();}
-    else{applyGoal();var lb=document.getElementById('logout-btn');if(lb)lb.style.display='';render();}
+    state.code=code;
+    var pulled=await supabasePull();loadProfile();
+    if(USERPROFILE&&USERPROFILE.onboarded){applyGoal();hideLogin();var lb=document.getElementById('logout-btn');if(lb)lb.style.display='';render();}
+    else if(!pulled&&!allowCreate){loginErr(errId,'Couldn’t reach the server to load your data — check your connection and try again.');}
+    else{hideLogin();startOnboarding();}
   }catch(e){
     var msg=e.message||'Something went wrong';
     if(/fetch/i.test(msg))msg='Cannot reach server \u2014 test on sionworkout.com, not inside the chat preview.';
@@ -960,7 +967,7 @@ async function authFlow(code,allowCreate,errId){
   }
 }
 function loadProfile(){try{var p=localStorage.getItem('rc_profile');USERPROFILE=p?JSON.parse(p):null;}catch(e){USERPROFILE=null;}}
-function saveUserProfile(){localStorage.setItem('rc_profile',JSON.stringify(USERPROFILE));supabasePush('rc_profile',USERPROFILE);}
+async function saveUserProfile(){localStorage.setItem('rc_profile',JSON.stringify(USERPROFILE));return await supabasePush('rc_profile',USERPROFILE);}
 function applyGoal(){
   if(!USERPROFILE)return;
   GOAL.startW=USERPROFILE.weight;GOAL.targetW=USERPROFILE.goalWeight;
@@ -1027,11 +1034,12 @@ function computePlan(d){
   var carbs=Math.max(40,Math.round((cals-protein*4-fat*9)/4/5)*5);
   return {calGoal:cals,proteinGoal:protein,carbGoal:carbs,fatGoal:fat,planLabel:label,tdee:Math.round(tdee)};
 }
-function finishOnb(){
+async function finishOnb(){
   document.getElementById('onb-fill').style.width='100%';
   var plan=computePlan(onbD);
   USERPROFILE=Object.assign({},onbD,plan,{onboarded:true,code:state.code,created:Date.now()});
-  saveUserProfile();
+  var saved=await saveUserProfile();
+  if(!saved)flash('⚠️ Saved on this device, but cloud sync failed — your plan may not load on other devices yet.');
   var prog=DB.getProgress();if(!prog.some(function(e){return e.weight;})){prog.push({date:localDate(),weight:onbD.weight,waist:null,sleep:null});DB.setProgress(prog);}
   applyGoal();showPlanReveal();
 }
@@ -1081,10 +1089,11 @@ async function bootApp(){
       var adminEmail=codeEmail('__admin_'+ADMIN_CODE);
       if(s.user.email===adminEmail){hideLogin();var lb=document.getElementById('logout-btn');if(lb)lb.style.display='';document.getElementById('content').innerHTML=adminHTML();var nav=document.getElementById('nav');if(nav)nav.style.display='none';return;}
       state.code=(s.user.email||'').split('@')[0].replace(/^u_/,'');
-      await supabasePull();loadProfile();hideLogin();
+      var pulled=await supabasePull();loadProfile();hideLogin();
       var lb2=document.getElementById('logout-btn');if(lb2)lb2.style.display='';
-      if(!USERPROFILE||!USERPROFILE.onboarded){startOnboarding();}
-      else{applyGoal();render();}
+      if(USERPROFILE&&USERPROFILE.onboarded){applyGoal();render();}
+      else if(!pulled){render();}/* offline / sync down: show app with local data, don't force re-onboarding */
+      else{startOnboarding();}
     }else{showLogin();}
   }catch(e){showLogin();}
 }
