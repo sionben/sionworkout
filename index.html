@@ -1365,18 +1365,24 @@ function recoveryStatus(){
   return {label:label,advice:advice,score:score,tone:tone,load7:Math.round(load7),dsr:dsr,names:recentMuscleNames(2)};
 }
 function upcomingClasses(daysAhead){
-  daysAhead=daysAhead||3;var out=[],sched=DB.getSched();if(!sched.length)return out;
-  var base=new Date(localDate()+'T00:00:00');
+  daysAhead=daysAhead||3;var out=[],sched=DB.getSched(),today=localDate();
+  var base=new Date(today+'T00:00:00');
   for(var i=0;i<=daysAhead;i++){
     var d=new Date(base.getTime()+i*86400000),dow=d.getDay(),ds=localDate(d);
     sched.forEach(function(s){if((s.dows||[]).indexOf(dow)>=0){
       var done=DB.getActs().some(function(a){return a.date===ds&&a.type===s.type&&a.fromSched===s.id;});
-      out.push({date:ds,time:s.time||'',type:s.type,schedId:s.id,done:done,offset:i});
+      out.push({date:ds,time:s.time||'',type:s.type,schedId:s.id,calUid:'',instructor:'',done:done,offset:i});
     }});
   }
-  out.sort(function(a,b){return a.date===b.date?(a.time<b.time?-1:1):(a.date<b.date?-1:1);});
-  return out;
+  DB.getCalEvents().forEach(function(e){var off=daysBetween(today,e.date);if(off>=0&&off<=daysAhead){var done=DB.getActs().some(function(a){return a.calUid===e.uid;});out.push({date:e.date,time:e.time||'',type:e.type,schedId:'',calUid:e.uid,instructor:e.instructor||'',done:done,offset:off});}});
+  /* dedup by date+type+time, prefer calendar entries (they carry instructor) */
+  out.sort(function(a,b){return (a.calUid?0:1)-(b.calUid?0:1);});
+  var seen={},dedup=[];
+  out.forEach(function(o){var k=o.date+'|'+o.type+'|'+o.time;if(!seen[k]){seen[k]=1;dedup.push(o);}});
+  dedup.sort(function(a,b){return a.date===b.date?(a.time<b.time?-1:1):(a.date<b.date?-1:1);});
+  return dedup;
 }
+function timeAgo(ts){if(!ts)return '';var s=Math.round((Date.now()-ts)/1000);if(s<60)return 'just now';var m=Math.round(s/60);if(m<60)return m+'m ago';var h=Math.round(m/60);if(h<24)return h+'h ago';return Math.round(h/24)+'d ago';}
 function fmtTime(t){if(!t)return '';var p=(''+t).split(':');var h=+p[0],m=p[1]||'00';var ap=h>=12?'pm':'am';h=h%12;if(h===0)h=12;return h+':'+m+ap;}
 
 /* ── Today: Recovery & Readiness card ── */
@@ -1392,8 +1398,8 @@ function recoveryCard(){
   var up=upcomingClasses(2),upHtml='';
   if(up.length){
     upHtml='<div class="rec-up">'+up.slice(0,3).map(function(u){var t=actType(u.type);var when=u.offset===0?'Today':(u.offset===1?'Tomorrow':prettyDate(u.date).split(',')[0]);
-      var right=u.done?'<span class="rec-done">✓ Done</span>':(u.offset===0?'<button class="rec-mark" onclick="markClassDone(\''+u.schedId+'\',\''+u.type+'\',\''+u.date+'\')">Mark done</button>':'<span class="rec-up-mus">'+t.muscles.split(',')[0]+'</span>');
-      return '<div class="rec-up-row"><div class="rec-up-l"><span class="rec-up-ic">'+t.icon+'</span><div><div class="rec-up-t">'+t.label+'</div><div class="rec-up-s">'+when+(u.time?' · '+fmtTime(u.time):'')+'</div></div></div>'+right+'</div>';
+      var right=u.done?'<span class="rec-done">✓ Done</span>':(u.offset===0?'<button class="rec-mark" onclick="markClassDone(\''+(u.schedId||'')+'\',\''+u.type+'\',\''+u.date+'\',\''+(u.calUid||'')+'\')">Mark done</button>':'<span class="rec-up-mus">'+(u.instructor||t.muscles.split(',')[0])+'</span>');
+      return '<div class="rec-up-row"><div class="rec-up-l"><span class="rec-up-ic">'+t.icon+'</span><div><div class="rec-up-t">'+t.label+'</div><div class="rec-up-s">'+when+(u.time?' · '+fmtTime(u.time):'')+(u.instructor?' · '+u.instructor:'')+'</div></div></div>'+right+'</div>';
     }).join('')+'</div>';
   }
   return '<div class="card rec-card"><div class="card-label">Recovery &amp; Readiness</div>'+
@@ -1424,7 +1430,7 @@ function pickActType(k){actDraft.type=k;actDraft.dur=ACTIVITY_TYPES[k].dur;rende
 function setActInt(v){actDraft.intensity=v;renderActivitySheet();}
 function setActDur(d){actDraft.dur=Math.max(5,(+actDraft.dur||0)+d);renderActivitySheet();}
 function saveActivity(){var t=actType(actDraft.type);DB.addAct({id:uid(),date:state.date,type:actDraft.type,dur:+actDraft.dur||t.dur,intensity:actDraft.intensity,cal:actCalories(actDraft)});closeModal();render();flash(t.icon+' '+t.label+' logged');}
-function markClassDone(schedId,type,date){var t=actType(type);DB.addAct({id:uid(),date:date,type:type,dur:t.dur,intensity:'moderate',cal:actCalories({type:type,dur:t.dur,intensity:'moderate'}),fromSched:schedId});render();flash(t.icon+' '+t.label+' done — nice work!');}
+function markClassDone(schedId,type,date,calUid){var t=actType(type);var rec={id:uid(),date:date,type:type,dur:t.dur,intensity:'moderate',cal:actCalories({type:type,dur:t.dur,intensity:'moderate'})};if(schedId)rec.fromSched=schedId;if(calUid)rec.calUid=calUid;DB.addAct(rec);render();flash(t.icon+' '+t.label+' done — nice work!');}
 
 /* ── Recurring class schedule ── */
 var DOW=['Su','Mo','Tu','We','Th','Fr','Sa'];
@@ -1437,6 +1443,10 @@ function renderSchedule(){
   m.innerHTML='<div class="sheet-title" style="margin-bottom:4px;">Class schedule</div>'+
     '<div style="font-size:12px;color:var(--dim);font-weight:600;margin-bottom:14px;">Set recurring classes once — they appear as upcoming and power the recovery engine.</div>'+
     '<div class="sched-list">'+list+'</div>'+
+    '<div class="card-label" style="margin:18px 0 10px;">Auto-sync from a calendar</div>'+
+    '<input id="cal-url" class="sched-sel" placeholder="Paste iCal URL (webcal:// or https://…)" value="'+((DB.getICal().url||'').replace(/"/g,'&quot;'))+'"/>'+
+    '<div style="display:flex;gap:9px;margin-top:10px;"><button class="btn-primary" style="flex:1;margin:0;" onclick="saveICal()">Save &amp; sync</button><button id="cal-sync-btn" class="btn-ghost" style="flex:1;margin:0;" onclick="syncCalendar(true)">↻ Sync now</button></div>'+
+    '<div style="font-size:11px;color:var(--dim);margin-top:8px;line-height:1.55;">Google Calendar → Settings → your class calendar → <b>Secret address in iCal format</b>. Apple Calendar → <b>Share → Public</b>. Booked classes appear as upcoming and auto-log after they pass.'+(DB.getICal().last?'<br>✓ Last synced '+timeAgo(DB.getICal().last)+'.':'')+'</div>'+
     '<div class="card-label" style="margin:18px 0 10px;">Add a recurring class</div>'+
     '<select id="sched-type" class="sched-sel">'+typeOpts+'</select>'+
     '<div class="dow-row">'+dowBtns+'</div>'+
@@ -1492,6 +1502,82 @@ function showRecap(j){
     '<button class="btn-primary" style="margin-top:18px;" onclick="closeModal()">Let’s go</button>';
   document.getElementById('modal').classList.add('open');
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   CALENDAR (.ics) AUTO-SYNC — pull booked classes from a shared iCal feed.
+   Browser can't fetch a 3rd-party .ics (CORS), so it goes through the
+   Worker route at ICAL_PROXY which fetches it server-side. No password,
+   read-only, ToS-clean.
+   ═══════════════════════════════════════════════════════════════════ */
+var ICAL_PROXY=WORKER_URL+'/ical';
+Object.assign(DB,{
+  getICal:function(){try{return JSON.parse(localStorage.getItem('rc_ical'))||{url:'',last:0};}catch(e){return {url:'',last:0};}},
+  setICal:function(v){localStorage.setItem('rc_ical',JSON.stringify(v));supabasePush('rc_ical',v);},
+  getCalEvents:function(){try{return JSON.parse(localStorage.getItem('rc_calev'))||[];}catch(e){return [];}},
+  setCalEvents:function(v){localStorage.setItem('rc_calev',JSON.stringify(v));supabasePush('rc_calev',v);}
+});
+function pad2(n){return (n<10?'0':'')+n;}
+function classifyClass(s){s=(s||'').toLowerCase();
+  if(/solidcore/.test(s))return 'solidcore';
+  if(/pilates|reformer/.test(s))return 'pilates';
+  if(/barre/.test(s))return 'barre';
+  if(/yoga|vinyasa|flow/.test(s))return 'yoga';
+  if(/spin|cycle|cycling|\bride\b|soulcycle/.test(s))return 'spin';
+  if(/\brun\b|tread|jog/.test(s))return 'run';
+  if(/hiit|bootcamp|circuit/.test(s))return 'hiit';
+  if(/swim/.test(s))return 'swim';
+  return 'other';
+}
+function extractInstructor(e){var s=(e.desc||'')+' '+(e.summary||'');var m=s.match(/(?:with|w\/|instructor:?|coach:?)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]*\.?)?)/);return m?m[1].trim():'';}
+function parseICSDate(v){var m=(''+v).match(/(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?/);if(!m)return null;var y=+m[1],mo=+m[2]-1,d=+m[3],h=+(m[4]||0),mi=+(m[5]||0),s=+(m[6]||0);return m[7]==='Z'?new Date(Date.UTC(y,mo,d,h,mi,s)):new Date(y,mo,d,h,mi,s);}
+function parseICS(text){
+  text=(''+text).replace(/\r\n[ \t]/g,'').replace(/\n[ \t]/g,'');/* unfold */
+  var lines=text.split(/\r?\n/),evs=[],cur=null;
+  lines.forEach(function(line){
+    if(line.indexOf('BEGIN:VEVENT')===0){cur={};return;}
+    if(line.indexOf('END:VEVENT')===0){if(cur)evs.push(cur);cur=null;return;}
+    if(!cur)return;
+    var idx=line.indexOf(':');if(idx<0)return;
+    var name=line.slice(0,idx).split(';')[0].toUpperCase(),val=line.slice(idx+1);
+    if(name==='SUMMARY')cur.summary=val.replace(/\\,/g,',').replace(/\\n/gi,' ');
+    else if(name==='DTSTART')cur.start=parseICSDate(val);
+    else if(name==='DESCRIPTION')cur.desc=val.replace(/\\n/gi,' ').replace(/\\,/g,',');
+    else if(name==='LOCATION')cur.location=val.replace(/\\,/g,',');
+    else if(name==='UID')cur.uid=val;
+  });
+  return evs.filter(function(e){return e.start;});
+}
+function calEventsToClasses(evs){
+  var now=Date.now();
+  return evs.filter(function(e){var dd=(e.start.getTime()-now)/86400000;return dd>=-30&&dd<=21;}).map(function(e){
+    var type=classifyClass((e.summary||'')+' '+(e.location||''));
+    return {uid:e.uid||((e.summary||'c')+e.start.getTime()),summary:e.summary||actType(type).label,type:type,date:localDate(e.start),time:pad2(e.start.getHours())+':'+pad2(e.start.getMinutes()),instructor:extractInstructor(e),muscles:actType(type).muscles};
+  });
+}
+async function syncCalendar(manual){
+  var cfg=DB.getICal();
+  var raw=(cfg.url||'').trim().replace(/^webcal:\/\//i,'https://');
+  if(!raw){if(manual)flash('Paste your calendar URL first');return;}
+  var btn=document.getElementById('cal-sync-btn');if(btn){btn.disabled=true;btn.textContent='Syncing…';}
+  try{
+    var res=await fetch(ICAL_PROXY+'?url='+encodeURIComponent(raw));
+    if(!res.ok)throw new Error(res.status===404?'Calendar proxy not deployed yet':'proxy '+res.status);
+    var text=await res.text();
+    if(text.indexOf('BEGIN:VCALENDAR')<0)throw new Error('That URL isn’t an iCal feed');
+    var classes=calEventsToClasses(parseICS(text));
+    DB.setCalEvents(classes);
+    cfg.last=Date.now();DB.setICal(cfg);
+    /* auto-log classes that have already happened (dedup by calendar UID) */
+    var have={};DB.getActs().forEach(function(a){if(a.calUid)have[a.calUid]=1;});
+    var today=localDate();
+    classes.forEach(function(e){if(e.date<=today&&!have[e.uid]){var t=actType(e.type);DB.addAct({id:uid(),date:e.date,type:e.type,dur:t.dur,intensity:'moderate',cal:actCalories({type:e.type,dur:t.dur,intensity:'moderate'}),calUid:e.uid,instructor:e.instructor});}});
+    if(manual)flash('✓ Synced '+classes.length+' classes');
+    if(document.getElementById('modal').classList.contains('open'))renderSchedule();
+    render();
+  }catch(e){if(manual)flash('⚠️ '+(e.message||'Sync failed'));}
+  if(btn){btn.disabled=false;btn.textContent='↻ Sync now';}
+}
+function saveICal(){var v=(document.getElementById('cal-url').value||'').trim();var cfg=DB.getICal();cfg.url=v;DB.setICal(cfg);if(v)syncCalendar(true);else{DB.setCalEvents([]);renderSchedule();render();}}
 
 bootApp();
 </script>
