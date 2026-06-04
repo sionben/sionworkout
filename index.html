@@ -4,7 +4,9 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#EEF2F8"/>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text x="0" y="14" font-size="14">🏋️</text></svg>'/>
 <title>RECOMP</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
@@ -956,9 +958,8 @@ async function authFlow(code,allowCreate,errId){
     }
     SBSESSION=r.data.session||{user:r.data.user};
     state.code=code;
-    var pulled=await supabasePull();loadProfile();
-    if(USERPROFILE&&USERPROFILE.onboarded){applyGoal();hideLogin();var lb=document.getElementById('logout-btn');if(lb)lb.style.display='';render();}
-    else if(!pulled&&!allowCreate){loginErr(errId,'Couldn’t reach the server to load your data — check your connection and try again.');}
+    await supabasePull();loadProfile();
+    if(USERPROFILE&&USERPROFILE.onboarded){migrateProfileToCloud();applyGoal();hideLogin();var lb=document.getElementById('logout-btn');if(lb)lb.style.display='';render();}
     else{hideLogin();startOnboarding();}
   }catch(e){
     var msg=e.message||'Something went wrong';
@@ -966,8 +967,29 @@ async function authFlow(code,allowCreate,errId){
     loginErr(errId,msg);
   }
 }
-function loadProfile(){try{var p=localStorage.getItem('rc_profile');USERPROFILE=p?JSON.parse(p):null;}catch(e){USERPROFILE=null;}}
-async function saveUserProfile(){localStorage.setItem('rc_profile',JSON.stringify(USERPROFILE));return await supabasePush('rc_profile',USERPROFILE);}
+/* PROFILE PERSISTENCE — source of truth is Supabase Auth user_metadata (travels with the
+   session, no extra query / table / RLS needed). localStorage + rc_store are mirrors. */
+function profileFromMeta(){try{var m=SBSESSION&&SBSESSION.user&&SBSESSION.user.user_metadata;return(m&&m.profile)?m.profile:null;}catch(e){return null;}}
+function loadProfile(){
+  var meta=profileFromMeta();
+  if(meta&&meta.onboarded){USERPROFILE=meta;try{localStorage.setItem('rc_profile',JSON.stringify(USERPROFILE));}catch(e){}return;}
+  try{var p=localStorage.getItem('rc_profile');USERPROFILE=p?JSON.parse(p):null;}catch(e){USERPROFILE=null;}
+}
+async function saveUserProfile(){
+  try{localStorage.setItem('rc_profile',JSON.stringify(USERPROFILE));}catch(e){}
+  var ok=false;
+  if(sb){
+    try{var res=await sb.auth.updateUser({data:{profile:USERPROFILE}});
+      if(res&&res.error){console.warn('profile save failed',res.error.message);}
+      else{ok=true;if(SBSESSION&&SBSESSION.user)SBSESSION.user.user_metadata=Object.assign({},SBSESSION.user.user_metadata||{},{profile:USERPROFILE});}
+    }catch(e){console.warn('profile save failed',e);}
+  }
+  supabasePush('rc_profile',USERPROFILE);/* best-effort mirror for daily-data table */
+  return ok;
+}
+/* If a profile exists locally / in rc_store but not yet in auth metadata, push it up so it
+   sticks across devices and the onboarding gate never re-fires. */
+function migrateProfileToCloud(){if(USERPROFILE&&USERPROFILE.onboarded&&!profileFromMeta())saveUserProfile();}
 function applyGoal(){
   if(!USERPROFILE)return;
   GOAL.startW=USERPROFILE.weight;GOAL.targetW=USERPROFILE.goalWeight;
@@ -1089,10 +1111,9 @@ async function bootApp(){
       var adminEmail=codeEmail('__admin_'+ADMIN_CODE);
       if(s.user.email===adminEmail){hideLogin();var lb=document.getElementById('logout-btn');if(lb)lb.style.display='';document.getElementById('content').innerHTML=adminHTML();var nav=document.getElementById('nav');if(nav)nav.style.display='none';return;}
       state.code=(s.user.email||'').split('@')[0].replace(/^u_/,'');
-      var pulled=await supabasePull();loadProfile();hideLogin();
+      await supabasePull();loadProfile();hideLogin();
       var lb2=document.getElementById('logout-btn');if(lb2)lb2.style.display='';
-      if(USERPROFILE&&USERPROFILE.onboarded){applyGoal();render();}
-      else if(!pulled){render();}/* offline / sync down: show app with local data, don't force re-onboarding */
+      if(USERPROFILE&&USERPROFILE.onboarded){migrateProfileToCloud();applyGoal();render();}
       else{startOnboarding();}
     }else{showLogin();}
   }catch(e){showLogin();}
