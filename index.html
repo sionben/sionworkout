@@ -1012,7 +1012,7 @@ async function authFlow(code,allowCreate,errId){
     SBSESSION=r.data.session||{user:r.data.user};
     state.code=code;
     await supabasePull();loadProfile();
-    if(USERPROFILE&&USERPROFILE.onboarded){migrateProfileToCloud();applyGoal();hideLogin();var lb=document.getElementById('logout-btn');if(lb)lb.style.display='';render();}
+    if(USERPROFILE&&USERPROFILE.onboarded){migrateProfileToCloud();applyGoal();hideLogin();var lb=document.getElementById('logout-btn');if(lb)lb.style.display='';render();syncFromShortcut(false);}
     else{hideLogin();startOnboarding();}
   }catch(e){
     var msg=e.message||'Something went wrong';
@@ -1169,7 +1169,7 @@ async function bootApp(){
       state.code=(s.user.email||'').split('@')[0].replace(/^u_/,'');
       await supabasePull();loadProfile();hideLogin();
       var lb2=document.getElementById('logout-btn');if(lb2)lb2.style.display='';
-      if(USERPROFILE&&USERPROFILE.onboarded){migrateProfileToCloud();applyGoal();render();}
+      if(USERPROFILE&&USERPROFILE.onboarded){migrateProfileToCloud();applyGoal();render();syncFromShortcut(false);}
       else{startOnboarding();}
     }else{showLogin();}
   }catch(e){showLogin();}
@@ -1447,6 +1447,9 @@ function renderSchedule(){
     '<input id="cal-url" class="sched-sel" placeholder="Paste iCal URL (webcal:// or https://…)" value="'+((DB.getICal().url||'').replace(/"/g,'&quot;'))+'"/>'+
     '<div style="display:flex;gap:9px;margin-top:10px;"><button class="btn-primary" style="flex:1;margin:0;" onclick="saveICal()">Save &amp; sync</button><button id="cal-sync-btn" class="btn-ghost" style="flex:1;margin:0;" onclick="syncCalendar(true)">↻ Sync now</button></div>'+
     '<div style="font-size:11px;color:var(--dim);margin-top:8px;line-height:1.55;">Google Calendar → Settings → your class calendar → <b>Secret address in iCal format</b>. Apple Calendar → <b>Share → Public</b>. Booked classes appear as upcoming and auto-log after they pass.'+(DB.getICal().last?'<br>✓ Last synced '+timeAgo(DB.getICal().last)+'.':'')+'</div>'+
+    '<div class="card-label" style="margin:18px 0 10px;">Sync from her iPhone</div>'+
+    '<button id="iphone-sync-btn" class="btn-ghost" onclick="syncFromShortcut(true)">↻ Pull classes from iPhone</button>'+
+    '<div style="font-size:11px;color:var(--dim);margin-top:8px;line-height:1.55;">Set up the iPhone Shortcut once (it reads her Apple Calendar privately) — then her classes flow in automatically every time the app opens.</div>'+
     '<div class="card-label" style="margin:18px 0 10px;">Add a recurring class</div>'+
     '<select id="sched-type" class="sched-sel">'+typeOpts+'</select>'+
     '<div class="dow-row">'+dowBtns+'</div>'+
@@ -1612,6 +1615,26 @@ async function runPasteClasses(){
     mergeCalClasses(mapped);
     closeModal();render();flash('✓ Added '+mapped.length+' class'+(mapped.length===1?'':'es'));
   }catch(e){flash('⚠️ '+(e.message||'Could not read that'));if(btn){btn.disabled=false;btn.textContent='⚡ Add them';}}
+}
+
+/* ── iPhone Shortcut sync: pull classes the Shortcut posted to the Worker (KV), merge in ── */
+async function syncFromShortcut(manual){
+  if(!state.code)return;
+  if(manual){var b=document.getElementById('iphone-sync-btn');if(b){b.disabled=true;b.textContent='Pulling…';}}
+  try{
+    var res=await fetch(WORKER_URL+'/classes?code='+encodeURIComponent(state.code));
+    if(res.ok){
+      var j=await res.json();
+      var list=(j.classes||[]).filter(function(c){return c.date&&/^\d{4}-\d{2}-\d{2}$/.test(c.date);});
+      if(list.length){
+        var mapped=list.map(function(c){var type=classifyClass(c.name||'');return {uid:'s'+c.date+type+(c.time||''),summary:c.name||actType(type).label,type:type,date:c.date,time:(c.time||'').slice(0,5),instructor:c.instructor||'',muscles:actType(type).muscles};});
+        mergeCalClasses(mapped);
+        if(manual){flash('✓ Synced '+mapped.length+' class'+(mapped.length===1?'':'es')+' from iPhone');render();}
+        else render();
+      }else if(manual)flash('No classes yet — run the Shortcut on her phone first');
+    }else if(manual)flash(res.status===404?'Worker /classes route not deployed yet':'Sync failed ('+res.status+')');
+  }catch(e){if(manual)flash('⚠️ Sync failed');}
+  if(manual){var b2=document.getElementById('iphone-sync-btn');if(b2){b2.disabled=false;b2.textContent='↻ Pull classes from iPhone';}}
 }
 
 bootApp();
