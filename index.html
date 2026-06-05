@@ -243,6 +243,10 @@ textarea::placeholder{color:var(--dim);}
 .chat-input-bar{flex-shrink:0;padding:12px 16px;border-top:1px solid var(--line);background:var(--bg);display:flex;gap:9px;align-items:flex-end;padding-bottom:calc(12px + var(--nav-h));}
 .chat-textarea{flex:1;background:var(--surface);border:1px solid var(--line2);color:var(--ink);border-radius:14px;padding:13px 16px;font-size:14px;outline:none;resize:none;font-family:'Manrope';max-height:120px;min-height:48px;line-height:1.4;box-shadow:var(--sh2);}
 .chat-textarea::placeholder{color:var(--dim);}
+.chat-photo-btn{width:48px;height:48px;border-radius:14px;background:var(--surface2);border:1px solid var(--line2);color:var(--sapphire);font-size:20px;cursor:pointer;flex-shrink:0;box-shadow:var(--sh2);display:flex;align-items:center;justify-content:center;}
+.chat-photo-btn:disabled{opacity:.5;}
+.msg-img{max-width:190px;max-height:190px;border-radius:13px;display:block;margin-bottom:6px;}
+.msg-img:last-child{margin-bottom:0;}
 .chat-send-btn{width:48px;height:48px;border-radius:14px;background:var(--grad);border:none;color:#fff;font-size:19px;cursor:pointer;flex-shrink:0;box-shadow:var(--shHover);}
 .chat-send-btn:disabled{background:var(--surface2);color:var(--dim);box-shadow:none;}
 .coach-note{background:linear-gradient(135deg,rgba(59,111,212,.1),rgba(14,158,142,.05));border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin:14px 18px 4px;font-size:16px;color:var(--ink);line-height:1.6;font-style:italic;font-family:'Cormorant Garamond';}
@@ -595,6 +599,7 @@ function openAccountModal(){
 const WORKER_URL='https://sionworkout-ai.sionbenharari.workers.dev';
 const MODEL_WORKOUT='claude-sonnet-4-6';
 const MODEL_FOOD='claude-haiku-4-5-20251001';
+const MODEL_VISION='claude-sonnet-4-6';
 const HAS_AI=true;
 
 const GOAL={startW:155,targetW:147,protein:160,calories:1800,carbs:150,fat:55};
@@ -733,6 +738,9 @@ async function callClaude(model,system,messages,maxTokens){
 function extractJSON(txt){let t=txt.replace(/```json/gi,'').replace(/```/g,'').trim();const a=t.indexOf('{'),b=t.lastIndexOf('}');if(a>=0&&b>a)t=t.slice(a,b+1);return JSON.parse(t);}
 
 /* ════════ STATE ════════ */
+const PHOTO_ADD=`
+
+WHEN THE USER SENDS A FOOD PHOTO: Identify every food and drink in the image and estimate portions from visual cues (plate/utensil size, depth of bowl). If portion size OR a high-impact hidden detail (cooking oil, dressing, protein type/amount, full-fat vs not) is genuinely ambiguous and would meaningfully change the macros, ask AT MOST 2 short clarifying questions first and do NOT output a <macros> block yet. Otherwise estimate immediately. When you estimate, briefly name what you see in one sentence, then output the <macros> block. Be realistic, lean slightly conservative (don't under-count calories).`;
 let state={tab:'today',date:localDate(),coach:{step:0,time:null,energy:null,focus:''},aiBusy:false,chat:[],chatBusy:false,jFilter:'all',jOpen:{},code:''};
 
 function render(){
@@ -894,31 +902,64 @@ async function coachGenerate(){
 function renderEat(){
   if(!HAS_AI)return '<div class="chat-wrap"><div class="chat-messages">'+setupNeeded()+'</div></div>';
   let msgs='';
-  if(state.chat.length===0){msgs='<div class="msg-row-ai"><div class="ai-avatar">🤖</div><div class="msg-bubble msg-ai">Tell me what you ate — the spot, the dish, how much — and I&apos;ll work out the calories and protein and log it against your 160g / 1,800 cal goal.<br><br>Try: <i>"Naya bowl, double chicken shawarma, hummus, tzatziki"</i> or <i>"4 chicken tacos and a beer"</i></div></div>';}
+  if(state.chat.length===0){msgs='<div class="msg-row-ai"><div class="ai-avatar">🤖</div><div class="msg-bubble msg-ai">Tell me what you ate — or tap 📷 to snap a photo of your plate — and I&apos;ll work out the calories and protein and log it against your 160g / 1,800 cal goal.<br><br>Try: <i>"Naya bowl, double chicken shawarma, hummus, tzatziki"</i>, or just photograph your meal.</div></div>';}
   else{msgs=state.chat.map(function(m,i){
-    if(m.role==='user')return '<div class="msg-row-user"><div class="msg-bubble msg-user">'+escapeHtml(m.content)+'</div></div>';
+    if(m.role==='user')return '<div class="msg-row-user"><div class="msg-bubble msg-user">'+(m.imgPreview?'<img class="msg-img" src="'+m.imgPreview+'"/>':'')+(m.content?escapeHtml(m.content):(m.imgPreview?'<span style="opacity:.85;font-size:13px;">📷 food photo</span>':''))+'</div></div>';
     let h='<div class="msg-row-ai"><div class="ai-avatar">🤖</div><div class="msg-bubble msg-ai">'+escapeHtml(m.content).replace(/\n/g,'<br>');
     if(m.macros){h+='<div class="msg-macros"><div class="macro-grid"><div class="macro-item"><div class="macro-num" style="color:var(--blue)">'+m.macros.calories+'</div><div class="macro-name">cal</div></div><div class="macro-item"><div class="macro-num" style="color:var(--orange)">'+m.macros.protein+'g</div><div class="macro-name">protein</div></div><div class="macro-item"><div class="macro-num" style="color:var(--dim)">'+(m.macros.carbs||0)+'g</div><div class="macro-name">carbs</div></div><div class="macro-item"><div class="macro-num" style="color:var(--dim)">'+(m.macros.fat||0)+'g</div><div class="macro-name">fat</div></div></div><button class="log-meal-btn'+(m.logged?' done':'')+'" onclick="logMeal('+i+')">'+(m.logged?'✓ Logged':'＋ Log this meal')+'</button></div>';}
     h+='</div></div>';return h;
   }).join('');
   if(state.chatBusy)msgs+='<div class="msg-row-ai"><div class="ai-avatar">🤖</div><div class="msg-bubble msg-ai"><div class="typing-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div></div>';}
-  return '<div class="chat-wrap"><div class="chat-messages" id="chat-messages">'+msgs+'</div><div class="chat-input-bar"><textarea class="chat-textarea" id="chat-input" placeholder="What did you eat?" rows="1" onkeydown="if(event.key===&apos;Enter&apos;&&!event.shiftKey){event.preventDefault();sendChat();}" oninput="grow(this)"></textarea><button class="chat-send-btn" id="send-btn" onclick="sendChat()"'+(state.chatBusy?' disabled':'')+'>➤</button></div></div>';
+  return '<div class="chat-wrap"><div class="chat-messages" id="chat-messages">'+msgs+'</div><div class="chat-input-bar"><input type="file" accept="image/*" capture="environment" id="food-photo-input" style="display:none" onchange="onFoodPhoto(this)"/><button class="chat-photo-btn" onclick="pickFoodPhoto()"'+(state.chatBusy?' disabled':'')+'>📷</button><textarea class="chat-textarea" id="chat-input" placeholder="What did you eat?" rows="1" onkeydown="if(event.key===&apos;Enter&apos;&&!event.shiftKey){event.preventDefault();sendChat();}" oninput="grow(this)"></textarea><button class="chat-send-btn" id="send-btn" onclick="sendChat()"'+(state.chatBusy?' disabled':'')+'>➤</button></div></div>';
 }
 function scrollChat(){const el=document.getElementById('chat-messages');if(el)el.scrollTop=el.scrollHeight;}
 function grow(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
 async function sendChat(){
   const inp=document.getElementById('chat-input');if(!inp)return;const text=inp.value.trim();if(!text||state.chatBusy)return;
   inp.value='';inp.style.height='auto';
-  state.chat.push({role:'user',content:text});state.chatBusy=true;render();scrollChat();
+  state.chat.push({role:'user',content:text});
+  runFoodAI();
+}
+async function runFoodAI(){
+  state.chatBusy=true;render();scrollChat();
   try{
-    const hist=state.chat.slice(-6).map(function(m){return {role:m.role==='user'?'user':'assistant',content:m.content};});
-    const raw=await callClaude(MODEL_FOOD,FOOD_SYS,hist,500);
+    const recent=state.chat.slice(-6);
+    const hasImg=recent.some(function(m){return m.img;});
+    const hist=recent.map(function(m){
+      if(m.role==='user'&&m.img)return {role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:m.img}},{type:'text',text:m.content||'Here is a photo of my food — estimate the macros.'}]};
+      return {role:m.role==='user'?'user':'assistant',content:m.content||''};
+    });
+    const raw=await callClaude(hasImg?MODEL_VISION:MODEL_FOOD,FOOD_SYS+(hasImg?PHOTO_ADD:''),hist,700);
     const macroMatch=raw.match(/<macros>([\s\S]*?)<\/macros>/);
     let macros=null;if(macroMatch){try{macros=JSON.parse(macroMatch[1]);}catch(e){}}
     const clean=raw.replace(/<macros>[\s\S]*?<\/macros>/,'').trim();
-    state.chat.push({role:'assistant',content:clean,macros:macros,logged:false});
-  }catch(e){state.chat.push({role:'assistant',content:'⚠️ '+(e.message||'error')+' — check your API key.',macros:null});}
+    state.chat.push({role:'assistant',content:clean||'(no response)',macros:macros,logged:false});
+  }catch(e){state.chat.push({role:'assistant',content:'⚠️ '+(e.message||'error')+' — check your connection.',macros:null});}
   state.chatBusy=false;render();scrollChat();
+}
+function pickFoodPhoto(){if(state.chatBusy)return;const i=document.getElementById('food-photo-input');if(i)i.click();}
+async function onFoodPhoto(input){
+  const file=input.files&&input.files[0];input.value='';if(!file||state.chatBusy)return;
+  try{
+    const out=await downscaleImage(file,1024,0.82);
+    state.chat.push({role:'user',content:'',img:out.b64,imgPreview:out.url});
+    runFoodAI();
+  }catch(e){flash('⚠️ Could not read that photo');}
+}
+function downscaleImage(file,maxDim,quality){
+  return new Promise(function(resolve,reject){
+    const url=URL.createObjectURL(file);const img=new Image();
+    img.onload=function(){
+      const scale=Math.min(1,maxDim/Math.max(img.width,img.height));
+      const cw=Math.max(1,Math.round(img.width*scale)),ch=Math.max(1,Math.round(img.height*scale));
+      const c=document.createElement('canvas');c.width=cw;c.height=ch;
+      c.getContext('2d').drawImage(img,0,0,cw,ch);
+      let durl;try{durl=c.toDataURL('image/jpeg',quality);}catch(e){URL.revokeObjectURL(url);return reject(e);}
+      URL.revokeObjectURL(url);resolve({url:durl,b64:durl.split(',')[1]});
+    };
+    img.onerror=function(){URL.revokeObjectURL(url);reject(new Error('decode failed'));};
+    img.src=url;
+  });
 }
 function logMeal(i){const m=state.chat[i];if(!m||!m.macros||m.logged)return;const d=DB.getDay(state.date);d.protein+=(m.macros.protein||0);d.calories+=(m.macros.calories||0);d.carbs=(d.carbs||0)+(m.macros.carbs||0);d.fat=(d.fat||0)+(m.macros.fat||0);d.log.push({name:m.macros.name||'AI meal',g:m.macros.protein||0,k:m.macros.calories||0});DB.setDay(state.date,d);state.chat[i].logged=true;flash('✓ Logged '+(m.macros.protein||0)+'g protein, '+(m.macros.calories||0)+' cal');render();scrollChat();}
 
