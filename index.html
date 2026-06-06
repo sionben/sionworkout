@@ -1063,7 +1063,7 @@ async function authFlow(code,allowCreate,errId){
     SBSESSION=r.data.session||{user:r.data.user};
     state.code=code;
     await supabasePull();loadProfile();
-    if(USERPROFILE&&USERPROFILE.onboarded){migrateProfileToCloud();applyGoal();hideLogin();var lb=document.getElementById('logout-btn');if(lb)lb.style.display='';render();syncFromShortcut(false);}
+    if(USERPROFILE&&USERPROFILE.onboarded){migrateProfileToCloud();applyGoal();hideLogin();var lb=document.getElementById('logout-btn');if(lb)lb.style.display='';render();syncFromShortcut(false);applyDeepLink();}
     else{hideLogin();startOnboarding();}
   }catch(e){
     var msg=e.message||'Something went wrong';
@@ -1220,7 +1220,7 @@ async function bootApp(){
       state.code=(s.user.email||'').split('@')[0].replace(/^u_/,'');
       await supabasePull();loadProfile();hideLogin();
       var lb2=document.getElementById('logout-btn');if(lb2)lb2.style.display='';
-      if(USERPROFILE&&USERPROFILE.onboarded){migrateProfileToCloud();applyGoal();render();syncFromShortcut(false);}
+      if(USERPROFILE&&USERPROFILE.onboarded){migrateProfileToCloud();applyGoal();render();syncFromShortcut(false);applyDeepLink();}
       else{startOnboarding();}
     }else{showLogin();}
   }catch(e){showLogin();}
@@ -1750,6 +1750,21 @@ function startDemoAnim(pat){
   var t0=performance.now();
   (function frame(now){var ph=((now-t0)%period)/period;var u=(1-Math.cos(ph*2*Math.PI))/2;dDraw(fn(u),now);demoRAF=requestAnimationFrame(frame);})(t0);
 }
+
+/* ── DEEP LINKS — home-screen launchers / widgets jump to a screen or action ──
+   Use:  sionworkout.com/#go=coach | #go=photo | #go=today | #go=eat | #go=journal | #go=recap */
+function applyDeepLink(){
+  try{
+    var go=((location.hash.match(/go=([a-z]+)/i)||[])[1]||(new URLSearchParams(location.search).get('go'))||'').toLowerCase();
+    if(!go)return;
+    var map={today:'today',home:'today',coach:'coach',workout:'coach',generate:'coach',gen:'coach',eat:'eat',food:'eat',log:'eat',photo:'eat',pic:'eat',journal:'journal',progress:'journal',stats:'journal',recap:'journal'};
+    var tab=map[go];if(!tab||typeof switchTab!=='function')return;
+    switchTab(tab);
+    if(go==='photo'||go==='pic'){setTimeout(function(){if(typeof flash==='function')flash('Tap 📷 to add your meal photo');if(typeof pickFoodPhoto==='function'){try{pickFoodPhoto();}catch(e){}}},320);}
+    else if(go==='recap'){setTimeout(function(){if(typeof generateWeeklyRecap==='function')generateWeeklyRecap();},320);}
+  }catch(e){}
+}
+window.addEventListener('hashchange',applyDeepLink);
 
 bootApp();
 </script>
